@@ -1,4 +1,4 @@
-# MVP Design Plan: Device-Native Photo Social App
+# MVP Design Plan: Decentralized Social App
 
 **Core principle:** The server stores metadata and text permanently. It never stores full-resolution photo/video originals permanently — those live on the user's device and are cached temporarily (with a TTL) when served to others.
 
