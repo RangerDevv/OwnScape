@@ -129,3 +129,5 @@ This alone proves the core privacy claim ("we don't keep your originals after yo
 ## 10. Technologies to Use
 
 **TBD**
+(Possible Options): [Expo](https://expo.dev/)
+- handles launching app etc
