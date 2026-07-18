@@ -1,23 +1,24 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-export default function LoginScreen() {
+export default function SignUpScreen() {
   const router = useRouter();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>OwnScape</Text>
-      <Text style={styles.subtitle}>Login to continue</Text>
+      <Text style={styles.title}>Create your account</Text>
+      <Text style={styles.subtitle}>Join OwnScape in less than a minute</Text>
 
+      <TextInput placeholder="Name" style={styles.input} />
       <TextInput placeholder="Email" style={styles.input} autoCapitalize="none" />
       <TextInput placeholder="Password" style={styles.input} secureTextEntry />
 
       <Pressable style={styles.primaryButton} onPress={() => router.push('/feed')}>
-        <Text style={styles.primaryButtonText}>Log In</Text>
+        <Text style={styles.primaryButtonText}>Sign Up</Text>
       </Pressable>
 
-      <Pressable style={styles.secondaryButton} onPress={() => router.push('/signup')}>
-        <Text style={styles.secondaryButtonText}>Create account</Text>
+      <Pressable style={styles.secondaryButton} onPress={() => router.push('/')}>
+        <Text style={styles.secondaryButtonText}>Back to login</Text>
       </Pressable>
     </View>
   );
@@ -31,12 +32,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f7f9fc',
   },
   title: {
-    fontSize: 34,
+    fontSize: 28,
     fontWeight: '800',
     color: '#111827',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 6,
     marginBottom: 20,
     color: '#4b5563',
