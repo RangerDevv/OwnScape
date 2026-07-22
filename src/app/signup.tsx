@@ -15,11 +15,10 @@ async function signUpNewUser(email: string, password: string, firstName: string)
   });
 
   if (error) {
-    console.error('Error signing up:', error.message);
-    return null;
+    return { data: null, error: error.message };
   }
 
-  return data;
+  return { data, error: null };
 }
 
 export default function SignUpScreen() {
@@ -28,15 +27,34 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleSignUp = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
     setIsSubmitting(true);
-    const data = await signUpNewUser(email, password, firstName);
+    const result = await signUpNewUser(email.trim(), password, firstName.trim());
     setIsSubmitting(false);
 
-    if (data) {
-      router.push('/feed');
+    if (result.error) {
+      setErrorMessage(result.error);
+      return;
     }
+
+    const data = result.data;
+
+    if (!data) {
+      setErrorMessage('Could not create account. Please try again.');
+      return;
+    }
+
+    if (data.session) {
+      router.replace('/feed');
+      return;
+    }
+
+    setSuccessMessage('Account created. Check your email to confirm your account before logging in.');
   };
 
   return (
@@ -71,6 +89,9 @@ export default function SignUpScreen() {
           onChangeText={setPassword}
           secureTextEntry
         />
+
+        {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+        {!!successMessage && <Text style={styles.successText}>{successMessage}</Text>}
 
         <Pressable style={styles.primaryButton} onPress={handleSignUp} disabled={isSubmitting}>
           <Text style={styles.primaryButtonText}>{isSubmitting ? 'CREATING...' : 'CREATE ACCOUNT'}</Text>
@@ -187,5 +208,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  successText: {
+    color: '#166534',
+    fontWeight: '700',
+    marginBottom: 8,
   },
 });

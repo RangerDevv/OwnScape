@@ -1,11 +1,33 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleLogin = async () => {
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setIsSubmitting(false);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    router.replace('/feed');
+  };
 
   return (
     <View style={styles.container}>
@@ -33,8 +55,10 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
 
-        <Pressable style={styles.primaryButton} onPress={() => router.push('/feed')}>
-          <Text style={styles.primaryButtonText}>LOG IN</Text>
+        {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+
+        <Pressable style={styles.primaryButton} onPress={handleLogin} disabled={isSubmitting}>
+          <Text style={styles.primaryButtonText}>{isSubmitting ? 'LOGGING IN...' : 'LOG IN'}</Text>
         </Pressable>
 
         <Pressable style={styles.secondaryButton} onPress={() => router.push('/signup')}>
@@ -148,5 +172,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontWeight: '700',
+    marginBottom: 8,
   },
 });

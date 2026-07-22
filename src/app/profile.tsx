@@ -1,8 +1,18 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    await supabase.auth.signOut();
+    setIsSigningOut(false);
+    router.replace('/');
+  };
 
   return (
     <View style={styles.page}>
@@ -29,6 +39,10 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>FOLLOWING</Text>
           </View>
         </View>
+
+        <Pressable style={styles.signOutButton} onPress={handleSignOut} disabled={isSigningOut}>
+          <Text style={styles.signOutButtonText}>{isSigningOut ? 'SIGNING OUT...' : 'SIGN OUT'}</Text>
+        </Pressable>
       </View>
 
       {/* Bottom Navigation Bar */}
@@ -142,6 +156,22 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 11,
     fontWeight: '800',
+  },
+  signOutButton: {
+    marginTop: 20,
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#000000',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   bottomNav: {
     position: 'absolute',
