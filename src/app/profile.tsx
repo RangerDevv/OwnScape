@@ -6,39 +6,47 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.page}>
-      <Text style={styles.headerTitle}>Profile</Text>
+      <Text style={styles.headerTitle}>PROFILE</Text>
 
       <View style={styles.card}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>JS</Text>
         </View>
-        <Text style={styles.name}>Jordan Stone</Text>
+        <Text style={styles.name}>JORDAN STONE</Text>
         <Text style={styles.handle}>@jordanstone</Text>
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>128</Text>
-            <Text style={styles.statLabel}>Posts</Text>
+            <Text style={styles.statLabel}>POSTS</Text>
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>5.3k</Text>
-            <Text style={styles.statLabel}>Followers</Text>
+            <Text style={styles.statLabel}>FOLLOWERS</Text>
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>402</Text>
-            <Text style={styles.statLabel}>Following</Text>
+            <Text style={styles.statLabel}>FOLLOWING</Text>
           </View>
         </View>
       </View>
 
+      {/* Bottom Navigation Bar */}
       <View style={styles.bottomNav}>
-        <Pressable style={styles.navButton} onPress={() => router.push('/feed')}>
-          <Text style={styles.navText}>Feed</Text>
+        <Pressable style={styles.navItem} onPress={() => router.push('/feed')}>
+          <Text style={styles.navIconSymbol}>⭐</Text>
         </Pressable>
-        <Pressable
-          style={StyleSheet.compose(styles.navButton, styles.navButtonActive)}
-          onPress={() => router.push('/profile')}>
-          <Text style={StyleSheet.compose(styles.navText, styles.navTextActive)}>Profile</Text>
+        <Pressable style={styles.navItem} onPress={() => router.push('/explore')}>
+          <Text style={styles.navIconSymbol}>🔍</Text>
+        </Pressable>
+        <Pressable style={styles.navItem} onPress={() => router.push('/feed')}>
+          <Text style={styles.navIconSymbol}>🏠</Text>
+        </Pressable>
+        <Pressable style={styles.navItem} onPress={() => {}}>
+          <Text style={styles.navIconSymbol}>➕</Text>
+        </Pressable>
+        <Pressable style={styles.navItemActive} onPress={() => router.push('/profile')}>
+          <Text style={styles.navIconActiveSymbol}>👤</Text>
         </Pressable>
       </View>
     </View>
@@ -48,94 +56,148 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#fffdf0',
     paddingTop: 54,
     paddingHorizontal: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 12,
+    fontWeight: '900',
+    color: '#000000',
+    marginBottom: 16,
+    letterSpacing: 1,
   },
   card: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 24,
+    borderWidth: 3,
+    borderColor: '#000000',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 5,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#111827',
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#ffe600',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#000000',
+    shadowColor: '#000000',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
   },
   avatarText: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: '800',
+    color: '#000000',
+    fontSize: 28,
+    fontWeight: '900',
   },
   name: {
-    marginTop: 12,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    marginTop: 16,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000000',
   },
   handle: {
     marginTop: 2,
-    color: '#6b7280',
+    color: '#000000',
     fontSize: 14,
+    fontWeight: '700',
+    backgroundColor: '#e5e7eb',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1.5,
+    borderColor: '#000000',
   },
   statsRow: {
-    marginTop: 18,
+    marginTop: 24,
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderWidth: 2,
+    borderColor: '#000000',
+    borderRadius: 8,
+    paddingVertical: 12,
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#000000',
   },
   statLabel: {
     marginTop: 2,
-    color: '#6b7280',
-    fontSize: 13,
+    color: '#000000',
+    fontSize: 11,
+    fontWeight: '800',
   },
   bottomNav: {
     position: 'absolute',
-    left: 16,
-    right: 16,
     bottom: 20,
+    left: 20,
+    right: 20,
+    height: 70,
+    backgroundColor: '#ffe600',
+    borderRadius: 16,
     flexDirection: 'row',
-    gap: 10,
-  },
-  navButton: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingVertical: 12,
     alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#000000',
   },
-  navButtonActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+  navItem: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
   },
-  navText: {
-    color: '#111827',
-    fontWeight: '600',
+  navItemActive: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#000000',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
   },
-  navTextActive: {
+  navIconSymbol: {
+    fontSize: 20,
+  },
+  navIconActiveSymbol: {
+    fontSize: 20,
     color: '#ffffff',
   },
 });
