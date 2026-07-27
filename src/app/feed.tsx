@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls } from '@/lib/storage'
 import BottomNav from '@/components/bottom-nav'
@@ -197,7 +197,11 @@ export default function FeedScreen() {
               <Pressable onPress={() => setCommentPostId(post.id)} style={styles.actionBtn}>
                 <Text style={styles.actionIcon}>💬</Text>
               </Pressable>
-              <Pressable style={styles.actionBtn}>
+              <Pressable onPress={async () => {
+                try {
+                  await Share.share({ message: `Check out this post by @${post.handle}: "${post.description}" on OwnScape!` })
+                } catch {}
+              }} style={styles.actionBtn}>
                 <Text style={styles.actionIcon}>✈️</Text>
               </Pressable>
               {currentUserId === post.author_id && (

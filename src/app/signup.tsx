@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { validateEmail, validateHandle, validatePassword } from '@/lib/validation'
 
 export default function SignUpScreen() {
   const router = useRouter()
@@ -16,8 +17,14 @@ export default function SignUpScreen() {
   const handleSignUp = async () => {
     setError('')
     setSuccess('')
-    if (!userHandle.trim()) { setError('Choose a handle'); return }
+    const emailErr = validateEmail(email)
+    const passErr = validatePassword(password)
+    const handleErr = validateHandle(userHandle)
+    if (emailErr || passErr || handleErr) { setError(emailErr || passErr || handleErr || ''); return }
     setSubmitting(true)
+
+    const { count } = await supabase.from('Users').select('*', { count: 'exact', head: true }).eq('user_handle', userHandle.trim())
+    if (count && count > 0) { setError('That handle is already taken'); setSubmitting(false); return }
 
     const { data, error: authErr } = await supabase.auth.signUp({
       email: email.trim(),

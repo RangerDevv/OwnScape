@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { validateEmail, validatePassword } from '@/lib/validation'
 
 export default function LoginScreen() {
   const router = useRouter()
@@ -12,6 +13,9 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError('')
+    const emailErr = validateEmail(email)
+    const passErr = validatePassword(password)
+    if (emailErr || passErr) { setError(emailErr || passErr || ''); return }
     setSubmitting(true)
     const { error: err } = await supabase.auth.signInWithPassword({
       email: email.trim(),
