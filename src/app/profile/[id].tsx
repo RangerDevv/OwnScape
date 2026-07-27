@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { parseUrls } from '@/lib/storage'
+import { followUser, getFollowCounts, isFollowing, unfollowUser } from '@/lib/follows'
 import BottomNav from '@/components/bottom-nav'
+import FollowListModal from '@/components/follow-list-modal'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 export default function UserProfileScreen() {
@@ -12,28 +14,47 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<DbUser | null>(null)
   const [posts, setPosts] = useState<DbPost[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [following, setFollowing] = useState(false)
+  const [followers, setFollowers] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [togglingFollow, setTogglingFollow] = useState(false)
+  const [listModal, setListModal] = useState<{ type: 'followers' | 'following' } | null>(null)
 
   useEffect(() => {
     if (!id) return
     ;(async () => {
-      const { data: userData } = await supabase
-        .from('Users')
-        .select('*')
-        .eq('id', id)
-        .single()
-      if (userData) setProfile(userData)
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUserId(user?.id || null)
 
-      const { data: userPosts } = await supabase
-        .from('Posts')
-        .select('*')
-        .eq('author_id', id)
-        .order('created_at', { ascending: false })
-        .limit(20)
-      if (userPosts) setPosts(userPosts as DbPost[])
+      const [userResult, postsResult, counts] = await Promise.all([
+        supabase.from('Users').select('*').eq('id', id).single(),
+        supabase.from('Posts').select('*').eq('author_id', id).order('created_at', { ascending: false }).limit(20),
+        getFollowCounts(id),
+        user ? isFollowing(user.id, id) : Promise.resolve(false),
+      ])
 
+      if (userResult.data) setProfile(userResult.data)
+      if (postsResult.data) setPosts(postsResult.data as DbPost[])
+      setFollowers(counts.followers)
+      setFollowingCount(counts.following)
+      setFollowing(user ? await isFollowing(user.id, id) : false)
       setLoading(false)
     })()
   }, [id])
+
+  const handleToggleFollow = async () => {
+    if (!currentUserId || !id) return
+    setTogglingFollow(true)
+    if (following) {
+      const ok = await unfollowUser(currentUserId, id)
+      if (ok) { setFollowing(false); setFollowers(prev => Math.max(0, prev - 1)) }
+    } else {
+      const ok = await followUser(currentUserId, id)
+      if (ok) { setFollowing(true); setFollowers(prev => prev + 1) }
+    }
+    setTogglingFollow(false)
+  }
 
   if (loading) {
     return (
@@ -42,6 +63,8 @@ export default function UserProfileScreen() {
       </View>
     )
   }
+
+  const isOwn = currentUserId === id
 
   return (
     <View style={styles.page}>
@@ -66,15 +89,27 @@ export default function UserProfileScreen() {
           {!profile?.user_bio && <Text style={styles.bioMuted}>No bio yet</Text>}
 
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile?.following_count ?? 0}</Text>
+            <Pressable style={styles.statItem} onPress={() => setListModal({ type: 'following' })}>
+              <Text style={styles.statValue}>{followingCount}</Text>
               <Text style={styles.statLabel}>FOLLOWING</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile?.follower_count ?? 0}</Text>
+            </Pressable>
+            <Pressable style={styles.statItem} onPress={() => setListModal({ type: 'followers' })}>
+              <Text style={styles.statValue}>{followers}</Text>
               <Text style={styles.statLabel}>FOLLOWERS</Text>
-            </View>
+            </Pressable>
           </View>
+
+          {!isOwn && (
+            <Pressable
+              style={[styles.followBtn, following && styles.followingBtn]}
+              onPress={handleToggleFollow}
+              disabled={togglingFollow}
+            >
+              <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                {togglingFollow ? '...' : following ? 'FOLLOWING' : 'FOLLOW'}
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <Text style={styles.postsSectionTitle}>POSTS ({posts.length})</Text>
@@ -107,6 +142,15 @@ export default function UserProfileScreen() {
       </ScrollView>
 
       <BottomNav active="explore" />
+
+      {id && listModal && (
+        <FollowListModal
+          userId={id}
+          listType={listModal.type}
+          visible
+          onClose={() => setListModal(null)}
+        />
+      )}
     </View>
   )
 }
@@ -151,6 +195,14 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 20, fontWeight: '900', color: '#000' },
   statLabel: { marginTop: 2, color: '#000', fontSize: 11, fontWeight: '800' },
+  followBtn: {
+    marginTop: 20, width: '100%', backgroundColor: '#000',
+    borderWidth: 2, borderColor: '#000', borderRadius: 8, paddingVertical: 12, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
+  },
+  followingBtn: { backgroundColor: '#ffe600' },
+  followBtnText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  followingBtnText: { color: '#000' },
   postsSectionTitle: {
     fontSize: 16, fontWeight: '900', color: '#000', marginTop: 12, marginBottom: 12,
     paddingHorizontal: 16, letterSpacing: 0.5,

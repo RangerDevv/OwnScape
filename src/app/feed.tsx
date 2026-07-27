@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls } from '@/lib/storage'
+import { addLike, getLikedPostIds, removeLike } from '@/lib/likes'
 import BottomNav from '@/components/bottom-nav'
 import CommentsModal from '@/components/comments-modal'
 import type { DbPost, DbUser } from '@/lib/database.types'
@@ -43,6 +44,11 @@ export default function FeedScreen() {
     return rows.map(p => ({ ...p, author: userMap[p.author_id] || null })) as PostWithAuthor[]
   }
 
+  const loadLikedIds = async () => {
+    if (!currentUserId) return
+    setLikedIds(await getLikedPostIds(currentUserId))
+  }
+
   const fetchPosts = async () => {
     const { data, error } = await supabase
       .from('Posts')
@@ -56,9 +62,10 @@ export default function FeedScreen() {
     }
     setLoading(false)
     setRefreshing(false)
+    loadLikedIds()
   }
 
-  useEffect(() => { fetchPosts() }, [])
+  useEffect(() => { fetchPosts() }, [currentUserId])
 
   const onRefresh = () => {
     setRefreshing(true)
@@ -85,6 +92,7 @@ export default function FeedScreen() {
   }
 
   const handleLike = async (post: PostWithAuthor) => {
+    if (!currentUserId) return
     const alreadyLiked = likedIds.has(post.id)
     const newLikeCount = post.like_count + (alreadyLiked ? -1 : 1)
 
@@ -95,8 +103,11 @@ export default function FeedScreen() {
     })
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, like_count: newLikeCount } : p))
 
-    const { error } = await supabase.from('Posts').update({ like_count: newLikeCount }).eq('id', post.id)
-    if (error) {
+    const ok = alreadyLiked
+      ? await removeLike(currentUserId, post.id)
+      : await addLike(currentUserId, post.id)
+
+    if (!ok) {
       setLikedIds(prev => {
         const next = new Set(prev)
         if (alreadyLiked) next.add(post.id); else next.delete(post.id)

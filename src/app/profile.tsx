@@ -4,7 +4,9 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls } from '@/lib/storage'
+import { getFollowCounts } from '@/lib/follows'
 import BottomNav from '@/components/bottom-nav'
+import FollowListModal from '@/components/follow-list-modal'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 export default function ProfileScreen() {
@@ -20,6 +22,9 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [followers, setFollowers] = useState(0)
+  const [following, setFollowing] = useState(0)
+  const [listModal, setListModal] = useState<{ type: 'followers' | 'following' } | null>(null)
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -62,6 +67,10 @@ export default function ProfileScreen() {
       .eq('author_id', user.id)
       .order('created_at', { ascending: false })
     if (posts) setMyPosts(posts as DbPost[])
+
+    const counts = await getFollowCounts(user.id)
+    setFollowers(counts.followers)
+    setFollowing(counts.following)
 
     setLoading(false)
   }
@@ -166,20 +175,14 @@ export default function ProfileScreen() {
               {!profile?.user_bio && <Text style={styles.bioMuted}>No bio yet</Text>}
 
               <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{profile?.following_count ?? 0}</Text>
+                <Pressable style={styles.statItem} onPress={() => setListModal({ type: 'following' })}>
+                  <Text style={styles.statValue}>{following}</Text>
                   <Text style={styles.statLabel}>FOLLOWING</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{profile?.follower_count ?? 0}</Text>
+                </Pressable>
+                <Pressable style={styles.statItem} onPress={() => setListModal({ type: 'followers' })}>
+                  <Text style={styles.statValue}>{followers}</Text>
                   <Text style={styles.statLabel}>FOLLOWERS</Text>
-                </View>
-                {profile?.isPublic !== undefined && (
-                  <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{profile.isPublic ? '✓' : '✗'}</Text>
-                    <Text style={styles.statLabel}>PUBLIC</Text>
-                  </View>
-                )}
+                </Pressable>
               </View>
 
               <Pressable style={styles.editProfileBtn} onPress={() => setEditing(true)}>
@@ -237,6 +240,15 @@ export default function ProfileScreen() {
       </ScrollView>
 
       <BottomNav active="profile" />
+
+      {profile && listModal && (
+        <FollowListModal
+          userId={profile.id}
+          listType={listModal.type}
+          visible
+          onClose={() => setListModal(null)}
+        />
+      )}
     </View>
   )
 }
