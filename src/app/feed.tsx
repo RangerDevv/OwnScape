@@ -1,136 +1,164 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { supabase } from '../../lib/supabase'
+import type { DbPost, DbUser } from '../../lib/database.types'
 
-const STORIES = [
-  { id: 'add', type: 'add', color: '#38bdf8' },
-  { id: '1', name: 'Cat', image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80', color: '#ff70a6' },
-  { id: '2', name: 'Marcus', image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80', color: '#ffd166' },
-  { id: '3', name: 'Duck', image: 'https://images.unsplash.com/photo-1555169062-01347abf4bac?w=200&auto=format&fit=crop&q=80', color: '#70c1b3' },
-  { id: '4', name: 'Goldie', image: 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=200&auto=format&fit=crop&q=80', color: '#ff9f1c' },
-];
-
-const FEED_POSTS = [
-  {
-    id: '1',
-    author: 'JOHN DOE',
-    handle: '@johndoe',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-    time: '20 MINS AGO',
-    image: 'https://images.unsplash.com/photo-1437622368342-7a3d73a34c8f?w=800&auto=format&fit=crop&q=80',
-    text: 'Social media should not be something where you have to worry about big corporations stealing your data and using it for their goals that you may or may not agree and you loose access to YOUR content. Share freely own everything',
-    likes: 34,
-    comments: 8,
-    starred: true,
-  },
-  {
-    id: '2',
-    author: 'MAYA RIVERA',
-    handle: '@mayar',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-    time: '2 HOURS AGO',
-    image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
-    text: 'Sunsets on the decentralized network hit different. No algorithms hiding your creations, just pure connection.',
-    likes: 52,
-    comments: 14,
-    starred: false,
-  },
-];
+type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle'> | null }
 
 export default function FeedScreen() {
-  const router = useRouter();
-  const [posts, setPosts] = useState(FEED_POSTS);
-  const [commentText, setCommentText] = useState('');
+  const router = useRouter()
+  const [posts, setPosts] = useState<PostWithAuthor[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [likedIds, setLikedIds] = useState<Set<number>>(new Set())
 
-  const toggleStar = (id: string) => {
-    setPosts(posts.map(p => p.id === id ? { ...p, starred: !p.starred, likes: p.starred ? p.likes - 1 : p.likes + 1 } : p));
-  };
+  const fetchPosts = async () => {
+    const { data, error } = await supabase
+      .from('Posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (!error && data) {
+      const rows = data as DbPost[]
+      const authorIds = [...new Set(rows.map(r => r.author_id).filter(Boolean))]
+      let userMap: Record<string, { user_name: string | null; user_handle: string }> = {}
+
+      if (authorIds.length > 0) {
+        const { data: users } = await supabase
+          .from('Users')
+          .select('id, user_name, user_handle')
+          .in('id', authorIds)
+        if (users) {
+          for (const u of users) {
+            userMap[u.id] = { user_name: u.user_name, user_handle: u.user_handle }
+          }
+        }
+      }
+
+      setPosts(rows.map(p => ({
+        ...p,
+        author: userMap[p.author_id] || null,
+      })) as PostWithAuthor[])
+    }
+    setLoading(false)
+    setRefreshing(false)
+  }
+
+  useEffect(() => { fetchPosts() }, [])
+
+  const onRefresh = () => {
+    setRefreshing(true)
+    fetchPosts()
+  }
+
+  const handleLike = async (post: PostWithAuthor) => {
+    const alreadyLiked = likedIds.has(post.id)
+    const newLikeCount = post.like_count + (alreadyLiked ? -1 : 1)
+
+    setLikedIds(prev => {
+      const next = new Set(prev)
+      alreadyLiked ? next.delete(post.id) : next.add(post.id)
+      return next
+    })
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, like_count: newLikeCount } : p))
+
+    await supabase.from('Posts').update({ like_count: newLikeCount }).eq('id', post.id)
+  }
+
+  const timeAgo = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `${mins} MIN AGO`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs} HOUR AGO`
+    return `${Math.floor(hrs / 24)} DAY AGO`
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fffdf0' }}>
+        <ActivityIndicator size="large" color="#111827" />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.page}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Stories Section */}
-        <View style={styles.storiesSection}>
-          <Text style={styles.storiesTitle}>STORIES</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesList}>
-            {STORIES.map((story) => (
-              story.type === 'add' ? (
-                <Pressable key={story.id} style={styles.addStoryItem}>
-                  <View style={[styles.addStoryCircle, { backgroundColor: story.color }]}>
-                    <Text style={styles.plusSymbol}>+</Text>
-                  </View>
-                </Pressable>
-              ) : (
-                <Pressable key={story.id} style={styles.storyItem}>
-                  <View style={[styles.storyRing, { backgroundColor: story.color }]}>
-                    <Image source={{ uri: story.image }} style={styles.storyAvatar} />
-                  </View>
-                </Pressable>
-              )
-            ))}
-          </ScrollView>
+      {/* Top Header */}
+      <View style={styles.topHeader}>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoDot} />
+          <Text style={styles.logoText}>OWNSCAPE</Text>
         </View>
+        <Pressable onPress={() => router.push('/create')} style={styles.createBtn}>
+          <Text style={styles.createBtnText}>+ POST</Text>
+        </Pressable>
+      </View>
 
-        {/* Feed Posts */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+      >
+        {posts.length === 0 && (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Text style={{ fontWeight: '900', fontSize: 16, color: '#000' }}>No posts yet</Text>
+            <Text style={{ marginTop: 4, color: '#6b7280', fontWeight: '600' }}>Be the first to share something!</Text>
+          </View>
+        )}
+
         {posts.map((post) => (
           <View key={post.id} style={styles.postCard}>
-            {/* Author Row */}
             <View style={styles.authorRow}>
               <View style={styles.authorInfo}>
-                <Image source={{ uri: post.avatar }} style={styles.authorAvatar} />
-                <Text style={styles.authorName}>{post.author}</Text>
+                <View style={styles.avatarSmall}>
+                  <Text style={styles.avatarLetter}>
+                    {(post.author?.user_name || post.handle || 'U').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={styles.authorName}>{post.author?.user_name || post.handle}</Text>
+                  <Text style={styles.authorHandle}>@{post.author?.user_handle || post.handle}</Text>
+                </View>
               </View>
-              <Text style={styles.postTime}>{post.time}</Text>
+              <Text style={styles.postTime}>{timeAgo(post.created_at)}</Text>
             </View>
 
-            {/* Post Image */}
-            <View style={styles.imageContainer}>
-              <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
-            </View>
+            {post.storage_key && (
+              <View style={styles.imageContainer}>
+                <Image source={{ uri: post.storage_key }} style={styles.postImage} resizeMode="cover" />
+              </View>
+            )}
 
-            {/* Post Caption */}
-            <Text style={styles.postCaption}>{post.text}</Text>
+            {!!post.description && <Text style={styles.postCaption}>{post.description}</Text>}
 
-            {/* Action Bar & Comment Input */}
             <View style={styles.actionFooter}>
-              <View style={styles.actionButtons}>
-                <Pressable onPress={() => toggleStar(post.id)} style={styles.actionBtn}>
-                  <Text style={styles.actionIcon}>{post.starred ? '⭐' : '☆'}</Text>
-                </Pressable>
-                <Pressable style={styles.actionBtn}>
-                  <Text style={styles.actionIcon}>💬</Text>
-                </Pressable>
-                <Pressable style={styles.actionBtn}>
-                  <Text style={styles.actionIcon}>✈️</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.commentInputContainer}>
-                <TextInput
-                  placeholder="Leave a comment..."
-                  placeholderTextColor="#6b7280"
-                  style={styles.commentInput}
-                  value={commentText}
-                  onChangeText={setCommentText}
-                />
-              </View>
+              <Pressable onPress={() => handleLike(post)} style={styles.actionBtn}>
+                <Text style={styles.actionIcon}>{likedIds.has(post.id) ? '⭐' : '☆'}</Text>
+                <Text style={styles.actionCount}>{post.like_count}</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push(`/comments/${post.id}`)} style={styles.actionBtn}>
+                <Text style={styles.actionIcon}>💬</Text>
+              </Pressable>
+              <Pressable style={styles.actionBtn}>
+                <Text style={styles.actionIcon}>✈️</Text>
+              </Pressable>
             </View>
           </View>
         ))}
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
+      {/* Bottom Nav */}
       <View style={styles.bottomNav}>
-        <Pressable style={styles.navItem} onPress={() => router.push('/feed')}>
-          <Text style={styles.navIconSymbol}>⭐</Text>
+        <Pressable style={styles.navItemActive} onPress={() => {}}>
+          <Text style={styles.navIconActiveSymbol}>🏠</Text>
         </Pressable>
         <Pressable style={styles.navItem} onPress={() => router.push('/explore')}>
           <Text style={styles.navIconSymbol}>🔍</Text>
         </Pressable>
-        <Pressable style={styles.navItemActive} onPress={() => router.push('/feed')}>
-          <Text style={styles.navIconActiveSymbol}>🏠</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => {}}>
+        <Pressable style={styles.navItem} onPress={() => router.push('/create')}>
           <Text style={styles.navIconSymbol}>➕</Text>
         </Pressable>
         <Pressable style={styles.navItem} onPress={() => router.push('/profile')}>
@@ -138,301 +166,80 @@ export default function FeedScreen() {
         </Pressable>
       </View>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: '#fffdf0',
-  },
+  page: { flex: 1, backgroundColor: '#fffdf0' },
   topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 3,
-    borderBottomColor: '#000000',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#ffffff',
+    borderBottomWidth: 3, borderBottomColor: '#000000',
   },
-  iconButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#ffffff',
-    borderWidth: 2,
-    borderColor: '#000000',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
+  logoContainer: { flexDirection: 'row', alignItems: 'center' },
+  logoDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ff6347', marginRight: 4 },
+  logoText: { fontSize: 18, fontWeight: '900', color: '#000', letterSpacing: 1 },
+  createBtn: {
+    backgroundColor: '#ffe600', borderWidth: 2, borderColor: '#000', borderRadius: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
   },
-  iconSymbol: {
-    fontSize: 20,
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  logoDot: {
-    width: 14,
-    height: 14,
-    backgroundColor: '#22c55e',
-    borderWidth: 2,
-    borderColor: '#000000',
-  },
-  logoText: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#000000',
-    letterSpacing: 1,
-  },
-  scrollContent: {
-    paddingBottom: 110,
-  },
-  storiesSection: {
-    paddingVertical: 14,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 3,
-    borderBottomColor: '#000000',
-  },
-  storiesTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#000000',
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    letterSpacing: 0.5,
-  },
-  storiesList: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  addStoryItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addStoryCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#000000',
-    shadowColor: '#000000',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  plusSymbol: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#000000',
-  },
-  storyItem: {
-    alignItems: 'center',
-  },
-  storyRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 8,
-    borderWidth: 3,
-    borderColor: '#000000',
-    padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  storyAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#000000',
-  },
+  createBtnText: { fontSize: 12, fontWeight: '900', color: '#000' },
+  scrollContent: { paddingBottom: 110 },
   postCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginTop: 20,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 3,
-    borderColor: '#000000',
-    shadowColor: '#000000',
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 5,
+    backgroundColor: '#ffffff', marginHorizontal: 16, marginTop: 20, borderRadius: 12, padding: 16,
+    borderWidth: 3, borderColor: '#000000',
+    shadowColor: '#000000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 5,
   },
-  authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+  authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatarSmall: {
+    width: 40, height: 40, borderRadius: 6, backgroundColor: '#ffe600', borderWidth: 2, borderColor: '#000',
+    alignItems: 'center', justifyContent: 'center',
   },
-  authorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  authorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#000000',
-  },
-  authorName: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#000000',
-  },
+  avatarLetter: { fontSize: 16, fontWeight: '900', color: '#000' },
+  authorName: { fontSize: 15, fontWeight: '900', color: '#000' },
+  authorHandle: { fontSize: 11, fontWeight: '700', color: '#6b7280' },
   postTime: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#000000',
-    backgroundColor: '#e5e7eb',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1.5,
-    borderColor: '#000000',
+    fontSize: 11, fontWeight: '700', color: '#000', backgroundColor: '#e5e7eb',
+    paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1.5, borderColor: '#000',
   },
   imageContainer: {
-    width: '100%',
-    height: 320,
-    borderRadius: 6,
-    overflow: 'hidden',
-    backgroundColor: '#f3f4f6',
-    marginBottom: 12,
-    borderWidth: 3,
-    borderColor: '#000000',
+    width: '100%', height: 320, borderRadius: 6, overflow: 'hidden',
+    backgroundColor: '#f3f4f6', marginBottom: 12, borderWidth: 3, borderColor: '#000',
   },
-  postImage: {
-    width: '100%',
-    height: '100%',
-  },
-  postCaption: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
-    lineHeight: 22,
-    marginBottom: 16,
-  },
+  postImage: { width: '100%', height: '100%' },
+  postCaption: { fontSize: 14, fontWeight: '500', color: '#1f2937', lineHeight: 22, marginBottom: 16 },
   actionFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#ff70a6',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 3,
-    borderColor: '#000000',
-    shadowColor: '#000000',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#ff70a6', borderRadius: 8, padding: 8,
+    borderWidth: 3, borderColor: '#000',
+    shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
   },
   actionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#000000',
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#fff', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 2, borderColor: '#000',
   },
-  actionIcon: {
-    fontSize: 16,
-  },
-  commentInputContainer: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    height: 40,
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#000000',
-  },
-  commentInput: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#1f2937',
-    padding: 0,
-  },
+  actionIcon: { fontSize: 14 },
+  actionCount: { fontSize: 12, fontWeight: '900', color: '#000' },
   bottomNav: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    height: 70,
-    backgroundColor: '#ffe600',
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 6,
-    borderWidth: 3,
-    borderColor: '#000000',
+    position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
+    backgroundColor: '#ffe600', borderRadius: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 12,
+    shadowColor: '#000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6,
+    borderWidth: 3, borderColor: '#000',
   },
   navItem: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#000000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
+    width: 42, height: 42, backgroundColor: '#ffffff', borderRadius: 8,
+    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
   },
   navItemActive: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#000000',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#000000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
+    width: 46, height: 46, backgroundColor: '#000', borderRadius: 8,
+    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
   },
-  navIconSymbol: {
-    fontSize: 20,
-  },
-  navIconActiveSymbol: {
-    fontSize: 20,
-    color: '#ffffff',
-  },
-});
+  navIconSymbol: { fontSize: 18 },
+  navIconActiveSymbol: { fontSize: 18, color: '#ffffff' },
+})
