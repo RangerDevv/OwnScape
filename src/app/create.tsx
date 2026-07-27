@@ -2,21 +2,29 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { supabase } from '../../lib/supabase'
-import { pickAndUploadImage } from '../../lib/storage'
+import { pickImages, uploadImage } from '../../lib/storage'
 
 export default function CreatePostScreen() {
   const router = useRouter()
   const [description, setDescription] = useState('')
-  const [handle, setHandle] = useState('')
-  const [imageUri, setImageUri] = useState<string | null>(null)
+  const [imageUris, setImageUris] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const handlePickImage = async () => {
+  const handlePickImages = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const uri = await pickAndUploadImage(user.id)
-    if (uri) setImageUri(uri)
+    const assets = await pickImages()
+    const urls: string[] = []
+    for (const asset of assets) {
+      const url = await uploadImage(asset, user.id)
+      if (url) urls.push(url)
+    }
+    setImageUris(prev => [...prev, ...urls])
+  }
+
+  const removeImage = (index: number) => {
+    setImageUris(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleCreate = async () => {
@@ -27,11 +35,16 @@ export default function CreatePostScreen() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('Not logged in'); setSubmitting(false); return }
 
-    const resolvedHandle = handle.trim() || user.email?.split('@')[0] || 'user'
+    const { data: profile } = await supabase
+      .from('Users')
+      .select('user_handle')
+      .eq('id', user.id)
+      .single()
+    const resolvedHandle = profile?.user_handle || user.email?.split('@')[0] || 'user'
 
     const { error: insertErr } = await supabase.from('Posts').insert({
       description: description.trim(),
-      storage_key: imageUri,
+      storage_key: imageUris.length > 0 ? JSON.stringify(imageUris) : null,
       handle: resolvedHandle,
       author_id: user.id,
       like_count: 0,
@@ -55,26 +68,22 @@ export default function CreatePostScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          {/* Image picker area */}
-          <Pressable style={styles.imagePicker} onPress={handlePickImage}>
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.pickedImage} />
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <Text style={styles.imagePlaceholderIcon}>📷</Text>
-                <Text style={styles.imagePlaceholderText}>TAP TO ADD IMAGE</Text>
-              </View>
-            )}
+          <Pressable style={styles.imagePickerBtn} onPress={handlePickImages}>
+            <Text style={styles.imagePickerBtnText}>📷 ADD IMAGES ({imageUris.length}/10)</Text>
           </Pressable>
-          {imageUri && (
-            <Pressable onPress={handlePickImage} style={styles.changeImageBtn}>
-              <Text style={styles.changeImageText}>CHANGE IMAGE</Text>
-            </Pressable>
-          )}
 
-          <Text style={styles.label}>HANDLE</Text>
-          <TextInput style={styles.input} value={handle} onChangeText={setHandle}
-            placeholder="@yourhandle" placeholderTextColor="#9ca3af" autoCapitalize="none" />
+          {imageUris.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbRow}>
+              {imageUris.map((uri, i) => (
+                <View key={i} style={styles.thumbWrap}>
+                  <Image source={{ uri }} style={styles.thumb} />
+                  <Pressable style={styles.removeBtn} onPress={() => removeImage(i)}>
+                    <Text style={styles.removeBtnText}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          )}
 
           <Text style={styles.label}>CAPTION</Text>
           <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription}
@@ -88,7 +97,6 @@ export default function CreatePostScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom Nav */}
       <View style={styles.bottomNav}>
         <Pressable style={styles.navItem} onPress={() => router.push('/feed')}>
           <Text style={styles.navIconSymbol}>🏠</Text>
@@ -112,7 +120,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#ffffff',
-    borderBottomWidth: 3, borderBottomColor: '#000000',
+    borderBottomWidth: 3, borderBottomColor: '#000',
   },
   backBtn: {
     paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#f3f4f6',
@@ -126,17 +134,20 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: '#000',
     shadowColor: '#000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 5,
   },
-  imagePicker: {
-    width: '100%', height: 220, borderRadius: 8, overflow: 'hidden',
+  imagePickerBtn: {
     backgroundColor: '#f3f4f6', borderWidth: 2, borderColor: '#000', borderStyle: 'dashed',
-    marginBottom: 12,
+    borderRadius: 8, paddingVertical: 28, alignItems: 'center', marginBottom: 12,
   },
-  pickedImage: { width: '100%', height: '100%' },
-  imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  imagePlaceholderIcon: { fontSize: 40 },
-  imagePlaceholderText: { fontSize: 13, fontWeight: '900', color: '#6b7280', marginTop: 8 },
-  changeImageBtn: { alignItems: 'center', marginBottom: 8 },
-  changeImageText: { fontSize: 11, fontWeight: '900', color: '#ff70a6' },
+  imagePickerBtnText: { fontSize: 16, fontWeight: '900', color: '#6b7280' },
+  thumbRow: { marginBottom: 12 },
+  thumbWrap: { position: 'relative', marginRight: 8 },
+  thumb: { width: 80, height: 80, borderRadius: 6, borderWidth: 2, borderColor: '#000' },
+  removeBtn: {
+    position: 'absolute', top: -6, right: -6,
+    backgroundColor: '#dc2626', borderRadius: 12, width: 22, height: 22,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#000',
+  },
+  removeBtnText: { color: '#fff', fontSize: 11, fontWeight: '900' },
   label: { fontSize: 12, fontWeight: '900', color: '#000', marginBottom: 6, marginTop: 12 },
   input: {
     backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#000', borderRadius: 8,

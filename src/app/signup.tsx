@@ -22,6 +22,7 @@ export default function SignUpScreen() {
     const { data, error: authErr } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: { data: { user_name: userName.trim(), user_handle: userHandle.trim() } },
     })
     if (authErr || !data.user) {
       setSubmitting(false)
@@ -29,7 +30,7 @@ export default function SignUpScreen() {
       return
     }
 
-    const { error: insertErr } = await supabase.from('Users').insert({
+    const newUser = {
       id: data.user.id,
       email: email.trim(),
       user_handle: userHandle.trim(),
@@ -38,13 +39,14 @@ export default function SignUpScreen() {
       follower_count: 0,
       following_count: 0,
       isPublic: true,
-    })
+    }
+
+    const { error: insertErr } = await supabase.from('Users').insert(newUser)
 
     setSubmitting(false)
 
     if (insertErr) {
-      setError('Account created but profile setup failed: ' + insertErr.message)
-      return
+      console.warn('Users insert failed (will retry on profile load):', insertErr.message)
     }
 
     if (data.session) {

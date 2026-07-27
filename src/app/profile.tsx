@@ -1,12 +1,14 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { supabase } from '../../lib/supabase'
-import type { DbUser } from '../../lib/database.types'
+import { parseUrls } from '../../lib/storage'
+import type { DbPost, DbUser } from '../../lib/database.types'
 
 export default function ProfileScreen() {
   const router = useRouter()
   const [profile, setProfile] = useState<DbUser | null>(null)
+  const [myPosts, setMyPosts] = useState<DbPost[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -14,23 +16,50 @@ export default function ProfileScreen() {
   const [editHandle, setEditHandle] = useState('')
   const [saving, setSaving] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('Users')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    if (!error && data) {
+    if (!data && user) {
+      const { data: newRow } = await supabase
+        .from('Users')
+        .insert({
+          id: user.id,
+          email: user.email || '',
+          user_handle: user.user_metadata?.user_handle || user.email?.split('@')[0] || 'user',
+          user_name: user.user_metadata?.user_name || null,
+          user_bio: null,
+          follower_count: 0,
+          following_count: 0,
+          isPublic: true,
+        })
+        .select('*')
+        .single()
+      if (newRow) data = newRow
+    }
+
+    if (data) {
       setProfile(data)
       setEditName(data.user_name || '')
       setEditBio(data.user_bio || '')
       setEditHandle(data.user_handle || '')
     }
+
+    const { data: posts } = await supabase
+      .from('Posts')
+      .select('*')
+      .eq('author_id', user.id)
+      .order('created_at', { ascending: false })
+    if (posts) setMyPosts(posts as DbPost[])
+
     setLoading(false)
   }
 
@@ -60,6 +89,33 @@ export default function ProfileScreen() {
     await supabase.auth.signOut()
     setIsSigningOut(false)
     router.replace('/')
+  }
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your profile, posts, and comments. This cannot be undone.',
+      [
+        { text: 'CANCEL', style: 'cancel' },
+        {
+          text: 'DELETE EVERYTHING',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            await supabase.from('Comments').delete().eq('author_id', user.id)
+            await supabase.from('Posts').delete().eq('author_id', user.id)
+            await supabase.from('Users').delete().eq('id', user.id)
+
+            await supabase.auth.signOut()
+            setDeleting(false)
+            router.replace('/')
+          },
+        },
+      ]
+    )
   }
 
   if (loading) {
@@ -132,7 +188,45 @@ export default function ProfileScreen() {
           <Pressable style={styles.signOutBtn} onPress={handleSignOut} disabled={isSigningOut}>
             <Text style={styles.signOutBtnText}>{isSigningOut ? 'SIGNING OUT...' : 'SIGN OUT'}</Text>
           </Pressable>
+
+          <Pressable style={styles.deleteAccountBtn} onPress={handleDeleteAccount} disabled={deleting}>
+            <Text style={styles.deleteAccountBtnText}>{deleting ? 'DELETING...' : 'DELETE ACCOUNT'}</Text>
+          </Pressable>
         </View>
+
+        <Text style={styles.postsSectionTitle}>MY POSTS ({myPosts.length})</Text>
+
+        {myPosts.length === 0 && (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ fontWeight: '600', color: '#9ca3af' }}>No posts yet</Text>
+          </View>
+        )}
+
+        {myPosts.map(post => {
+          const images = parseUrls(post.storage_key)
+          return (
+          <View key={post.id} style={styles.postCard}>
+            {images.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.profilePostImages}>
+                {images.map((url, i) => (
+                  <Image key={i} source={{ uri: url }} style={styles.profilePostImage} resizeMode="cover" />
+                ))}
+              </ScrollView>
+            )}
+            {!!post.description && <Text style={styles.postDesc}>{post.description}</Text>}
+            <View style={styles.postMeta}>
+              <Text style={styles.postMetaText}>⭐ {post.like_count}</Text>
+              <Text style={styles.postMetaText}>✈️ {post.share_count}</Text>
+              <Pressable onPress={() => {
+                setMyPosts(prev => prev.filter(p => p.id !== post.id))
+                supabase.from('Posts').delete().eq('id', post.id)
+              }} style={styles.deletePostBtn}>
+                <Text style={styles.deletePostBtnText}>🗑️</Text>
+              </Pressable>
+            </View>
+          </View>
+          )
+        })}
       </ScrollView>
 
       {/* Bottom Nav */}
@@ -212,6 +306,27 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#000', borderRadius: 8, paddingVertical: 12, alignItems: 'center',
   },
   signOutBtnText: { color: '#000', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  deleteAccountBtn: {
+    marginTop: 24, width: '100%', backgroundColor: '#fee2e2',
+    borderWidth: 2, borderColor: '#dc2626', borderRadius: 8, paddingVertical: 12, alignItems: 'center',
+  },
+  deleteAccountBtnText: { color: '#dc2626', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  postsSectionTitle: {
+    fontSize: 16, fontWeight: '900', color: '#000', marginTop: 28, marginBottom: 12, letterSpacing: 0.5,
+  },
+  postCard: {
+    backgroundColor: '#ffffff', borderRadius: 10, padding: 12, marginBottom: 14,
+    borderWidth: 2, borderColor: '#000',
+    shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
+  },
+  postImage: { width: '100%', height: 200, borderRadius: 6, marginBottom: 8, borderWidth: 2, borderColor: '#000' },
+  postDesc: { fontSize: 13, fontWeight: '600', color: '#1f2937', marginBottom: 8 },
+  postMeta: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  postMetaText: { fontSize: 12, fontWeight: '800', color: '#6b7280' },
+  deletePostBtn: { marginLeft: 'auto', backgroundColor: '#fee2e2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1.5, borderColor: '#000' },
+  deletePostBtnText: { fontSize: 12 },
+  profilePostImages: { marginBottom: 8, borderRadius: 6, overflow: 'hidden' },
+  profilePostImage: { width: 200, height: 160, borderRadius: 6, marginRight: 6, borderWidth: 2, borderColor: '#000' },
   bottomNav: {
     position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
     backgroundColor: '#ffe600', borderRadius: 16,

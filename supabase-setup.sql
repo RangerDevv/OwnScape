@@ -84,25 +84,25 @@ CREATE POLICY "Authenticated users can comment" ON "Comments"
 CREATE POLICY "Users can delete their own comments" ON "Comments"
   FOR DELETE USING (auth.uid() = author_id);
 
--- 8. Storage: Create the post-images bucket
+-- 8. Storage: Create the Post bucket
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('post-images', 'post-images', true)
+VALUES ('Post', 'Post', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Allow public read access to post-images
+-- Allow public read access to Post bucket
 CREATE POLICY "Public can view post images" ON storage.objects
-  FOR SELECT USING (bucket_id = 'post-images');
+  FOR SELECT USING (bucket_id = 'Post');
 
 -- Allow authenticated users to upload images
 CREATE POLICY "Authenticated users can upload images" ON storage.objects
   FOR INSERT WITH CHECK (
-    bucket_id = 'post-images'
+    bucket_id = 'Post'
     AND auth.role() = 'authenticated'
   );
 
 -- Allow users to delete their own uploads
 CREATE POLICY "Users can delete their own images" ON storage.objects
   FOR DELETE USING (
-    bucket_id = 'post-images'
+    bucket_id = 'Post'
     AND auth.uid() = owner
   );

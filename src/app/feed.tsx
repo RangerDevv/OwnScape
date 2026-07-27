@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '../../lib/supabase'
+import { parseUrls } from '../../lib/storage'
 import type { DbPost, DbUser } from '../../lib/database.types'
 
 type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle'> | null }
@@ -12,6 +13,11 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [likedIds, setLikedIds] = useState<Set<number>>(new Set())
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null))
+  }, [])
 
   const fetchPosts = async () => {
     const { data, error } = await supabase
@@ -65,6 +71,11 @@ export default function FeedScreen() {
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, like_count: newLikeCount } : p))
 
     await supabase.from('Posts').update({ like_count: newLikeCount }).eq('id', post.id)
+  }
+
+  const handleDeletePost = async (postId: number) => {
+    setPosts(prev => prev.filter(p => p.id !== postId))
+    await supabase.from('Posts').delete().eq('id', postId)
   }
 
   const timeAgo = (ts: string) => {
@@ -126,11 +137,16 @@ export default function FeedScreen() {
               <Text style={styles.postTime}>{timeAgo(post.created_at)}</Text>
             </View>
 
-            {post.storage_key && (
-              <View style={styles.imageContainer}>
-                <Image source={{ uri: post.storage_key }} style={styles.postImage} resizeMode="cover" />
-              </View>
-            )}
+            {(() => {
+              const images = parseUrls(post.storage_key)
+              return images.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageContainer}>
+                  {images.map((url, i) => (
+                    <Image key={i} source={{ uri: url }} style={styles.postImage} resizeMode="cover" />
+                  ))}
+                </ScrollView>
+              ) : null
+            })()}
 
             {!!post.description && <Text style={styles.postCaption}>{post.description}</Text>}
 
@@ -145,6 +161,11 @@ export default function FeedScreen() {
               <Pressable style={styles.actionBtn}>
                 <Text style={styles.actionIcon}>✈️</Text>
               </Pressable>
+              {currentUserId === post.author_id && (
+                <Pressable onPress={() => handleDeletePost(post.id)} style={styles.deleteBtn}>
+                  <Text style={styles.deleteBtnText}>🗑️</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         ))}
@@ -205,10 +226,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1.5, borderColor: '#000',
   },
   imageContainer: {
-    width: '100%', height: 320, borderRadius: 6, overflow: 'hidden',
+    width: '100%', height: 320, borderRadius: 6,
     backgroundColor: '#f3f4f6', marginBottom: 12, borderWidth: 3, borderColor: '#000',
+    overflow: 'hidden',
   },
-  postImage: { width: '100%', height: '100%' },
+  postImage: { width: 320, height: '100%', marginRight: 4 },
   postCaption: { fontSize: 14, fontWeight: '500', color: '#1f2937', lineHeight: 22, marginBottom: 16 },
   actionFooter: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -223,6 +245,11 @@ const styles = StyleSheet.create({
   },
   actionIcon: { fontSize: 14 },
   actionCount: { fontSize: 12, fontWeight: '900', color: '#000' },
+  deleteBtn: {
+    marginLeft: 'auto', backgroundColor: '#fee2e2', borderRadius: 6,
+    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 2, borderColor: '#000',
+  },
+  deleteBtnText: { fontSize: 14 },
   bottomNav: {
     position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
     backgroundColor: '#ffe600', borderRadius: 16,

@@ -1,8 +1,10 @@
 import { Stack, usePathname, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
 import { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
+
+const isWeb = Platform.OS === 'web'
 
 export default function RootLayout() {
   const router = useRouter()
@@ -42,8 +44,10 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fffdf0' }}>
-      <Stack screenOptions={{ headerShown: false }} />
+    <View style={styles.outer}>
+      <View style={styles.inner}>
+        <Stack screenOptions={{ headerShown: false }} />
+      </View>
     </View>
   )
 }
@@ -51,5 +55,13 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fffdf0',
+  },
+  outer: {
+    flex: 1, backgroundColor: '#fffdf0',
+    ...(isWeb ? { alignItems: 'center' } : {}),
+  },
+  inner: {
+    flex: 1, width: '100%',
+    ...(isWeb ? { maxWidth: 480, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#e5e7eb' } : {}),
   },
 })
