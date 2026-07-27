@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { supabase } from '../../lib/supabase'
-import { parseUrls } from '../../lib/storage'
-import type { DbPost, DbUser } from '../../lib/database.types'
+import { supabase } from '@/lib/supabase'
+import { parseUrls } from '@/lib/storage'
+import BottomNav from '@/components/bottom-nav'
+import type { DbPost, DbUser } from '@/lib/database.types'
 
 type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle'> | null }
 
@@ -65,12 +66,20 @@ export default function FeedScreen() {
 
     setLikedIds(prev => {
       const next = new Set(prev)
-      alreadyLiked ? next.delete(post.id) : next.add(post.id)
+      if (alreadyLiked) next.delete(post.id); else next.add(post.id)
       return next
     })
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, like_count: newLikeCount } : p))
 
-    await supabase.from('Posts').update({ like_count: newLikeCount }).eq('id', post.id)
+    const { error } = await supabase.from('Posts').update({ like_count: newLikeCount }).eq('id', post.id)
+    if (error) {
+      setLikedIds(prev => {
+        const next = new Set(prev)
+        if (alreadyLiked) next.add(post.id); else next.delete(post.id)
+        return next
+      })
+      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, like_count: post.like_count } : p))
+    }
   }
 
   const handleDeletePost = async (postId: number) => {
@@ -80,7 +89,9 @@ export default function FeedScreen() {
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime()
-    const mins = Math.floor(diff / 60000)
+    const secs = Math.floor(diff / 1000)
+    if (secs < 60) return 'JUST NOW'
+    const mins = Math.floor(secs / 60)
     if (mins < 60) return `${mins} MIN AGO`
     const hrs = Math.floor(mins / 60)
     if (hrs < 24) return `${hrs} HOUR AGO`
@@ -171,21 +182,7 @@ export default function FeedScreen() {
         ))}
       </ScrollView>
 
-      {/* Bottom Nav */}
-      <View style={styles.bottomNav}>
-        <Pressable style={styles.navItemActive} onPress={() => {}}>
-          <Text style={styles.navIconActiveSymbol}>🏠</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/explore')}>
-          <Text style={styles.navIconSymbol}>🔍</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/create')}>
-          <Text style={styles.navIconSymbol}>➕</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/profile')}>
-          <Text style={styles.navIconSymbol}>👤</Text>
-        </Pressable>
-      </View>
+      <BottomNav active="feed" />
     </View>
   )
 }
@@ -250,23 +247,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderWidth: 2, borderColor: '#000',
   },
   deleteBtnText: { fontSize: 14 },
-  bottomNav: {
-    position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
-    backgroundColor: '#ffe600', borderRadius: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 12,
-    shadowColor: '#000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6,
-    borderWidth: 3, borderColor: '#000',
-  },
-  navItem: {
-    width: 42, height: 42, backgroundColor: '#ffffff', borderRadius: 8,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
-  },
-  navItemActive: {
-    width: 46, height: 46, backgroundColor: '#000', borderRadius: 8,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
-  },
-  navIconSymbol: { fontSize: 18 },
-  navIconActiveSymbol: { fontSize: 18, color: '#ffffff' },
 })

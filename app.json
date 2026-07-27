@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "HelloWorld",
+    "name": "OwnScape",
     "slug": "ownscape",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "helloworld",
+    "scheme": "ownscape",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",

@@ -1,8 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-import { supabase } from '../../../lib/supabase'
-import type { DbComment, DbPost, DbUser } from '../../../lib/database.types'
+import { supabase } from '@/lib/supabase'
+import type { DbComment, DbPost, DbUser } from '@/lib/database.types'
 
 type CommentWithAuthor = DbComment & { author: Pick<DbUser, 'user_name' | 'user_handle'> | null }
 

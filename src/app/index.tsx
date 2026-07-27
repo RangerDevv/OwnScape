@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { supabase } from '../../lib/supabase'
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { supabase } from '@/lib/supabase'
 
 export default function LoginScreen() {
   const router = useRouter()
@@ -23,7 +23,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.card}>
         <View style={styles.logoBadge}><Text style={styles.logoBadgeText}>OS</Text></View>
         <Text style={styles.title}>OWNSCAPE</Text>
@@ -44,7 +44,7 @@ export default function LoginScreen() {
           <Text style={styles.secondaryButtonText}>CREATE ACCOUNT</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

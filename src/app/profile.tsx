@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-import { supabase } from '../../lib/supabase'
-import { parseUrls } from '../../lib/storage'
-import type { DbPost, DbUser } from '../../lib/database.types'
+import { supabase } from '@/lib/supabase'
+import { parseUrls } from '@/lib/storage'
+import BottomNav from '@/components/bottom-nav'
+import type { DbPost, DbUser } from '@/lib/database.types'
 
 export default function ProfileScreen() {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function ProfileScreen() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    let { data, error } = await supabase
+    let { data } = await supabase
       .from('Users')
       .select('*')
       .eq('id', user.id)
@@ -229,21 +230,7 @@ export default function ProfileScreen() {
         })}
       </ScrollView>
 
-      {/* Bottom Nav */}
-      <View style={styles.bottomNav}>
-        <Pressable style={styles.navItem} onPress={() => router.push('/feed')}>
-          <Text style={styles.navIconSymbol}>🏠</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/explore')}>
-          <Text style={styles.navIconSymbol}>🔍</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/create')}>
-          <Text style={styles.navIconSymbol}>➕</Text>
-        </Pressable>
-        <Pressable style={styles.navItemActive} onPress={() => router.push('/profile')}>
-          <Text style={styles.navIconActiveSymbol}>👤</Text>
-        </Pressable>
-      </View>
+      <BottomNav active="profile" />
     </View>
   )
 }
@@ -327,23 +314,4 @@ const styles = StyleSheet.create({
   deletePostBtnText: { fontSize: 12 },
   profilePostImages: { marginBottom: 8, borderRadius: 6, overflow: 'hidden' },
   profilePostImage: { width: 200, height: 160, borderRadius: 6, marginRight: 6, borderWidth: 2, borderColor: '#000' },
-  bottomNav: {
-    position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
-    backgroundColor: '#ffe600', borderRadius: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 12,
-    shadowColor: '#000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6,
-    borderWidth: 3, borderColor: '#000',
-  },
-  navItem: {
-    width: 42, height: 42, backgroundColor: '#ffffff', borderRadius: 8,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
-  },
-  navItemActive: {
-    width: 46, height: 46, backgroundColor: '#000', borderRadius: 8,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
-  },
-  navIconSymbol: { fontSize: 18 },
-  navIconActiveSymbol: { fontSize: 18, color: '#ffffff' },
 })

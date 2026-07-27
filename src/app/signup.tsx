@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { supabase } from '../../lib/supabase'
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { supabase } from '@/lib/supabase'
 
 export default function SignUpScreen() {
   const router = useRouter()
@@ -58,7 +58,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.card}>
         <View style={styles.logoBadge}><Text style={styles.logoBadgeText}>OS</Text></View>
         <Text style={styles.title}>JOIN OWNSCAPE</Text>
@@ -84,7 +84,7 @@ export default function SignUpScreen() {
           <Text style={styles.secondaryButtonText}>BACK TO LOGIN</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

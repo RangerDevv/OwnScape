@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-import { supabase } from '../../lib/supabase'
-import { pickImages, uploadImage } from '../../lib/storage'
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { supabase } from '@/lib/supabase'
+import { pickImages, uploadImage } from '@/lib/storage'
+import BottomNav from '@/components/bottom-nav'
 
 export default function CreatePostScreen() {
   const router = useRouter()
@@ -58,6 +59,7 @@ export default function CreatePostScreen() {
 
   return (
     <View style={styles.page}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>← BACK</Text>
@@ -97,26 +99,15 @@ export default function CreatePostScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <Pressable style={styles.navItem} onPress={() => router.push('/feed')}>
-          <Text style={styles.navIconSymbol}>🏠</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/explore')}>
-          <Text style={styles.navIconSymbol}>🔍</Text>
-        </Pressable>
-        <Pressable style={styles.navItemActive} onPress={() => router.push('/create')}>
-          <Text style={styles.navIconActiveSymbol}>➕</Text>
-        </Pressable>
-        <Pressable style={styles.navItem} onPress={() => router.push('/profile')}>
-          <Text style={styles.navIconSymbol}>👤</Text>
-        </Pressable>
-      </View>
+      <BottomNav active="create" />
+      </KeyboardAvoidingView>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#fffdf0' },
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#ffffff',
@@ -161,23 +152,4 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
   },
   submitBtnText: { color: '#000', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
-  bottomNav: {
-    position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
-    backgroundColor: '#ffe600', borderRadius: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 12,
-    shadowColor: '#000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6,
-    borderWidth: 3, borderColor: '#000',
-  },
-  navItem: {
-    width: 42, height: 42, backgroundColor: '#ffffff', borderRadius: 8,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
-  },
-  navItemActive: {
-    width: 46, height: 46, backgroundColor: '#000', borderRadius: 8,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
-  },
-  navIconSymbol: { fontSize: 18 },
-  navIconActiveSymbol: { fontSize: 18, color: '#ffffff' },
 })

@@ -1,8 +1,8 @@
 import { Stack, usePathname, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native'
 import { Session } from '@supabase/supabase-js'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 const isWeb = Platform.OS === 'web'
 
