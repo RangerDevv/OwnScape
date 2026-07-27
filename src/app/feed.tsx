@@ -2,52 +2,57 @@ import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
-import { parseUrls } from '@/lib/storage'
+import { deleteStorageImages, parseUrls } from '@/lib/storage'
 import BottomNav from '@/components/bottom-nav'
+import CommentsModal from '@/components/comments-modal'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle'> | null }
+
+const PAGE_SIZE = 20
 
 export default function FeedScreen() {
   const router = useRouter()
   const [posts, setPosts] = useState<PostWithAuthor[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [likedIds, setLikedIds] = useState<Set<number>>(new Set())
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [commentPostId, setCommentPostId] = useState<number | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null))
   }, [])
+
+  const enrichPosts = async (rows: DbPost[]): Promise<PostWithAuthor[]> => {
+    const authorIds = [...new Set(rows.map(r => r.author_id).filter(Boolean))]
+    let userMap: Record<string, { user_name: string | null; user_handle: string }> = {}
+    if (authorIds.length > 0) {
+      const { data: users } = await supabase
+        .from('Users')
+        .select('id, user_name, user_handle')
+        .in('id', authorIds)
+      if (users) {
+        for (const u of users) {
+          userMap[u.id] = { user_name: u.user_name, user_handle: u.user_handle }
+        }
+      }
+    }
+    return rows.map(p => ({ ...p, author: userMap[p.author_id] || null })) as PostWithAuthor[]
+  }
 
   const fetchPosts = async () => {
     const { data, error } = await supabase
       .from('Posts')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(PAGE_SIZE)
 
     if (!error && data) {
-      const rows = data as DbPost[]
-      const authorIds = [...new Set(rows.map(r => r.author_id).filter(Boolean))]
-      let userMap: Record<string, { user_name: string | null; user_handle: string }> = {}
-
-      if (authorIds.length > 0) {
-        const { data: users } = await supabase
-          .from('Users')
-          .select('id, user_name, user_handle')
-          .in('id', authorIds)
-        if (users) {
-          for (const u of users) {
-            userMap[u.id] = { user_name: u.user_name, user_handle: u.user_handle }
-          }
-        }
-      }
-
-      setPosts(rows.map(p => ({
-        ...p,
-        author: userMap[p.author_id] || null,
-      })) as PostWithAuthor[])
+      setPosts(await enrichPosts(data as DbPost[]))
+      setHasMore(data.length === PAGE_SIZE)
     }
     setLoading(false)
     setRefreshing(false)
@@ -58,6 +63,25 @@ export default function FeedScreen() {
   const onRefresh = () => {
     setRefreshing(true)
     fetchPosts()
+  }
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || posts.length === 0) return
+    setLoadingMore(true)
+    const lastCreated = posts[posts.length - 1].created_at
+    const { data, error } = await supabase
+      .from('Posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .lt('created_at', lastCreated)
+      .limit(PAGE_SIZE)
+
+    if (!error && data) {
+      const newPosts = await enrichPosts(data as DbPost[])
+      setPosts(prev => [...prev, ...newPosts])
+      setHasMore(data.length === PAGE_SIZE)
+    }
+    setLoadingMore(false)
   }
 
   const handleLike = async (post: PostWithAuthor) => {
@@ -82,9 +106,13 @@ export default function FeedScreen() {
     }
   }
 
-  const handleDeletePost = async (postId: number) => {
-    setPosts(prev => prev.filter(p => p.id !== postId))
-    await supabase.from('Posts').delete().eq('id', postId)
+  const handleDeletePost = async (post: PostWithAuthor) => {
+    setPosts(prev => prev.filter(p => p.id !== post.id))
+    const images = parseUrls(post.storage_key)
+    await Promise.all([
+      supabase.from('Posts').delete().eq('id', post.id),
+      images.length > 0 ? deleteStorageImages(images) : Promise.resolve(),
+    ])
   }
 
   const timeAgo = (ts: string) => {
@@ -140,10 +168,10 @@ export default function FeedScreen() {
                     {(post.author?.user_name || post.handle || 'U').charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <View>
+                <Pressable onPress={() => router.push(`/profile/${post.author_id}`)}>
                   <Text style={styles.authorName}>{post.author?.user_name || post.handle}</Text>
                   <Text style={styles.authorHandle}>@{post.author?.user_handle || post.handle}</Text>
-                </View>
+                </Pressable>
               </View>
               <Text style={styles.postTime}>{timeAgo(post.created_at)}</Text>
             </View>
@@ -166,23 +194,41 @@ export default function FeedScreen() {
                 <Text style={styles.actionIcon}>{likedIds.has(post.id) ? '⭐' : '☆'}</Text>
                 <Text style={styles.actionCount}>{post.like_count}</Text>
               </Pressable>
-              <Pressable onPress={() => router.push(`/comments/${post.id}`)} style={styles.actionBtn}>
+              <Pressable onPress={() => setCommentPostId(post.id)} style={styles.actionBtn}>
                 <Text style={styles.actionIcon}>💬</Text>
               </Pressable>
               <Pressable style={styles.actionBtn}>
                 <Text style={styles.actionIcon}>✈️</Text>
               </Pressable>
               {currentUserId === post.author_id && (
-                <Pressable onPress={() => handleDeletePost(post.id)} style={styles.deleteBtn}>
+                <Pressable onPress={() => handleDeletePost(post)} style={styles.deleteBtn}>
                   <Text style={styles.deleteBtnText}>🗑️</Text>
                 </Pressable>
               )}
             </View>
           </View>
         ))}
+
+        {hasMore && (
+          <Pressable
+            style={styles.loadMoreBtn}
+            onPress={loadMore}
+            disabled={loadingMore}
+          >
+            <Text style={styles.loadMoreText}>
+              {loadingMore ? 'LOADING...' : 'LOAD MORE'}
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <BottomNav active="feed" />
+
+      <CommentsModal
+        postId={commentPostId ?? 0}
+        visible={commentPostId !== null}
+        onClose={() => setCommentPostId(null)}
+      />
     </View>
   )
 }
@@ -247,4 +293,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderWidth: 2, borderColor: '#000',
   },
   deleteBtnText: { fontSize: 14 },
+  loadMoreBtn: {
+    marginHorizontal: 16, marginTop: 20, marginBottom: 20,
+    backgroundColor: '#000', borderRadius: 8, paddingVertical: 14, alignItems: 'center',
+    borderWidth: 2, borderColor: '#000',
+  },
+  loadMoreText: { color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
 })

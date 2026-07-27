@@ -1,13 +1,15 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
-import { parseUrls } from '@/lib/storage'
+import { deleteStorageImages, parseUrls } from '@/lib/storage'
 import BottomNav from '@/components/bottom-nav'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 export default function ProfileScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const [profile, setProfile] = useState<DbUser | null>(null)
   const [myPosts, setMyPosts] = useState<DbPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,7 +130,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, { paddingTop: insets.top + 16 }]}>
       <Text style={styles.headerTitle}>PROFILE</Text>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
@@ -218,9 +220,13 @@ export default function ProfileScreen() {
             <View style={styles.postMeta}>
               <Text style={styles.postMetaText}>⭐ {post.like_count}</Text>
               <Text style={styles.postMetaText}>✈️ {post.share_count}</Text>
-              <Pressable onPress={() => {
+              <Pressable onPress={async () => {
                 setMyPosts(prev => prev.filter(p => p.id !== post.id))
-                supabase.from('Posts').delete().eq('id', post.id)
+                const images = parseUrls(post.storage_key)
+                await Promise.all([
+                  supabase.from('Posts').delete().eq('id', post.id),
+                  images.length > 0 ? deleteStorageImages(images) : Promise.resolve(),
+                ])
               }} style={styles.deletePostBtn}>
                 <Text style={styles.deletePostBtnText}>🗑️</Text>
               </Pressable>
@@ -236,7 +242,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#fffdf0', paddingTop: 54, paddingHorizontal: 16 },
+  page: { flex: 1, backgroundColor: '#fffdf0', paddingHorizontal: 16 },
   headerTitle: { fontSize: 28, fontWeight: '900', color: '#000', marginBottom: 16, letterSpacing: 1 },
   card: {
     backgroundColor: '#ffffff', borderRadius: 12, padding: 24,

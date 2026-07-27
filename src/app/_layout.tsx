@@ -1,6 +1,7 @@
 import { Stack, usePathname, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
@@ -44,11 +45,11 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={styles.outer}>
+    <SafeAreaView style={styles.outer}>
       <View style={styles.inner}>
         <Stack screenOptions={{ headerShown: false }} />
       </View>
-    </View>
+    </SafeAreaView>
   )
 }
 

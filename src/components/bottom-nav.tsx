@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type Tab = 'feed' | 'explore' | 'create' | 'profile'
 
@@ -12,6 +13,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 export default function BottomNav({ active }: { active: Tab }) {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const handlePress = (tab: Tab) => {
     if (tab === active) return
@@ -25,7 +27,7 @@ export default function BottomNav({ active }: { active: Tab }) {
   }
 
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom, 12) }]}>
       {TABS.map((tab) => {
         const isActive = tab.key === active
         return (
@@ -46,7 +48,7 @@ export default function BottomNav({ active }: { active: Tab }) {
 
 const styles = StyleSheet.create({
   bottomNav: {
-    position: 'absolute', bottom: 20, left: 20, right: 20, height: 60,
+    position: 'absolute', left: 20, right: 20, height: 60,
     backgroundColor: '#ffe600', borderRadius: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 12,
     shadowColor: '#000', shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0, elevation: 6,

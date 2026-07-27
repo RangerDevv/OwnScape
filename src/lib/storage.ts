@@ -30,14 +30,12 @@ export async function pickImages(): Promise<ImagePicker.ImagePickerAsset[]> {
 
   if (result.canceled || !result.assets?.length) return []
 
-  for (const asset of result.assets) {
-    if (asset.fileSize && asset.fileSize > MAX_SIZE) {
-      alert('One or more images exceed the 5MB limit. Choose smaller files.')
-      return []
-    }
+  const oversized = result.assets.filter(a => a.fileSize && a.fileSize > MAX_SIZE)
+  if (oversized.length > 0) {
+    alert(`${oversized.length} image(s) exceed the 5MB limit and were skipped.`)
   }
 
-  return result.assets
+  return result.assets.filter(a => !a.fileSize || a.fileSize <= MAX_SIZE)
 }
 
 export async function uploadImage(asset: ImagePicker.ImagePickerAsset, userId: string): Promise<string | null> {
@@ -68,4 +66,17 @@ export async function uploadImage(asset: ImagePicker.ImagePickerAsset, userId: s
 
   const { data: urlData } = supabase.storage.from('Post').getPublicUrl(fileName)
   return urlData?.publicUrl || null
+}
+
+export async function deleteStorageImages(urls: string[]): Promise<void> {
+  const paths: string[] = []
+  for (const url of urls) {
+    const parts = url.split('/Post/')
+    if (parts.length === 2) {
+      const path = decodeURIComponent(parts[1].split('?')[0])
+      paths.push(path)
+    }
+  }
+  if (paths.length === 0) return
+  await supabase.storage.from('Post').remove(paths)
 }
