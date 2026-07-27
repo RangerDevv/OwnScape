@@ -118,7 +118,6 @@ export default function InboxScreen() {
               onPress={() => {
                 if (n.type === 'follow') {
                   router.push(`/profile/${n.actor_id}`)
-                  router.push(`/inbox`)
                 } else if (n.post_id) {
                   router.push(`/post/${n.post_id}`)
                 }

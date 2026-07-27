@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls } from '@/lib/storage'
@@ -13,6 +13,8 @@ import UserAvatar from '@/components/user-avatar'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle' | 'avatar_url'> | null }
+
+let readSubId = 0
 
 const PAGE_SIZE = 20
 
@@ -28,6 +30,13 @@ export default function FeedScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [commentPostId, setCommentPostId] = useState<number | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!currentUserId) return
+      getUnreadCount(currentUserId).then(setUnreadCount)
+    }, [currentUserId])
+  )
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -45,6 +54,29 @@ export default function FeedScreen() {
       setUnreadCount(prev => prev + 1)
     })
     return unsub
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (!currentUserId) return
+    const id = ++readSubId
+    const channel = supabase
+      .channel(`notifications-read-${currentUserId}-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'Notifications',
+          filter: `recipient_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          if ((payload.new as { read: boolean }).read) {
+            setUnreadCount(prev => Math.max(0, prev - 1))
+          }
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [currentUserId])
 
   const enrichPosts = async (rows: DbPost[]): Promise<PostWithAuthor[]> => {
@@ -194,7 +226,7 @@ export default function FeedScreen() {
           <Text style={[styles.logoText, { color: colors.text }]}>OWNSCAPE</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Pressable onPress={() => router.push('/inbox')} style={[styles.createBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
+          <Pressable onPress={() => router.push('/inbox')} style={[styles.createBtn, { backgroundColor: unreadCount > 0 ? colors.pink : colors.grayLight, borderColor: colors.border }]}>
             <Text style={[styles.createBtnText, { color: colors.text }]}>🔔{unreadCount > 0 ? ` ${unreadCount}` : ''}</Text>
           </Pressable>
           <Pressable onPress={() => router.push('/create')} style={[styles.createBtn, { backgroundColor: colors.yellow, borderColor: colors.border }]}>
