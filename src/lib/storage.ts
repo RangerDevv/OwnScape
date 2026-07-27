@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from './supabase'
+import { handleError } from './errors'
 
 const MAX_SIZE = 5 * 1024 * 1024
 
@@ -68,15 +69,52 @@ export async function uploadImage(asset: ImagePicker.ImagePickerAsset, userId: s
   return urlData?.publicUrl || null
 }
 
-export async function deleteStorageImages(urls: string[]): Promise<void> {
-  const paths: string[] = []
-  for (const url of urls) {
-    const parts = url.split('/Post/')
-    if (parts.length === 2) {
-      const path = decodeURIComponent(parts[1].split('?')[0])
-      paths.push(path)
-    }
+export async function uploadAvatar(asset: ImagePicker.ImagePickerAsset, userId: string): Promise<string | null> {
+  const ext = asset.fileName?.split('.').pop() || 'jpg'
+  const fileName = `avatars/${userId}.${ext}`
+
+  let blob: Blob
+  try {
+    const response = await fetch(asset.uri)
+    blob = await response.blob()
+  } catch {
+    alert('Could not read the selected image. Try a different file.')
+    return null
   }
-  if (paths.length === 0) return
-  await supabase.storage.from('Post').remove(paths)
+
+  const { error } = await supabase.storage
+    .from('Avatars')
+    .upload(fileName, blob, {
+      contentType: asset.mimeType || 'image/jpeg',
+      upsert: true,
+    })
+
+  if (error) {
+    if (error.message.includes('bucket')) {
+      alert('Avatars storage bucket not found. Ask the admin to create it.')
+    } else {
+      alert('Upload failed: ' + error.message)
+    }
+    return null
+  }
+
+  const { data: urlData } = supabase.storage.from('Avatars').getPublicUrl(fileName)
+  return urlData?.publicUrl || null
+}
+
+export async function deleteStorageImages(urls: string[]): Promise<void> {
+  try {
+    const paths: string[] = []
+    for (const url of urls) {
+      const parts = url.split('/Post/')
+      if (parts.length === 2) {
+        const path = decodeURIComponent(parts[1].split('?')[0])
+        paths.push(path)
+      }
+    }
+    if (paths.length === 0) return
+    await supabase.storage.from('Post').remove(paths)
+  } catch (e) {
+    handleError(e, 'deleteStorageImages')
+  }
 }

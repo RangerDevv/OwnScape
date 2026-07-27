@@ -4,10 +4,21 @@ export interface DbUser {
   email: string
   user_handle: string
   user_bio: string | null
+  avatar_url: string | null
   follower_count: number | null
   following_count: number
   isPublic: boolean
   user_name: string | null
+}
+
+export interface DbNotification {
+  id: number
+  created_at: string
+  recipient_id: string
+  actor_id: string
+  type: 'like' | 'comment' | 'follow'
+  post_id: number | null
+  read: boolean
 }
 
 export interface DbPost {
@@ -50,6 +61,7 @@ export interface Database {
       Comments: { Row: DbComment; Insert: Omit<DbComment, 'id' | 'created_at'>; Update: Partial<DbComment> }
       Follows: { Row: DbFollow; Insert: Omit<DbFollow, 'created_at'>; Update: Partial<DbFollow> }
       Likes: { Row: DbLike; Insert: Omit<DbLike, 'created_at'>; Update: Partial<DbLike> }
+      Notifications: { Row: DbNotification; Insert: Omit<DbNotification, 'id' | 'created_at'>; Update: Partial<DbNotification> }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

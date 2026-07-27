@@ -3,8 +3,10 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { parseUrls } from '@/lib/storage'
+import { handleError } from '@/lib/errors'
 import BottomNav from '@/components/bottom-nav'
 import CommentsModal from '@/components/comments-modal'
+import UserAvatar from '@/components/user-avatar'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 type TrendingPost = DbPost & { images: string[] }
@@ -23,13 +25,17 @@ export default function ExploreScreen() {
   const fetchTrending = async () => {
     setLoading(true)
     setSearched(false)
-    const { data } = await supabase
-      .from('Posts')
-      .select('*')
-      .order('like_count', { ascending: false })
-      .limit(20)
-    if (data) {
-      setPosts((data as DbPost[]).map(p => ({ ...p, images: parseUrls(p.storage_key) })))
+    try {
+      const { data } = await supabase
+        .from('Posts')
+        .select('*')
+        .order('like_count', { ascending: false })
+        .limit(20)
+      if (data) {
+        setPosts((data as DbPost[]).map(p => ({ ...p, images: parseUrls(p.storage_key) })))
+      }
+    } catch (e) {
+      handleError(e, 'fetchTrending')
     }
     setLoading(false)
   }
@@ -40,23 +46,27 @@ export default function ExploreScreen() {
     setLoading(true)
     setSearched(true)
 
-    if (mode === 'posts') {
-      const { data } = await supabase
-        .from('Posts')
-        .select('*')
-        .ilike('description', `%${q}%`)
-        .order('like_count', { ascending: false })
-        .limit(20)
-      if (data) {
-        setPosts((data as DbPost[]).map(p => ({ ...p, images: parseUrls(p.storage_key) })))
+    try {
+      if (mode === 'posts') {
+        const { data } = await supabase
+          .from('Posts')
+          .select('*')
+          .ilike('description', `%${q}%`)
+          .order('like_count', { ascending: false })
+          .limit(20)
+        if (data) {
+          setPosts((data as DbPost[]).map(p => ({ ...p, images: parseUrls(p.storage_key) })))
+        }
+      } else {
+        const { data } = await supabase
+          .from('Users')
+          .select('*')
+          .or(`user_handle.ilike.%${q}%,user_name.ilike.%${q}%`)
+          .limit(20)
+        if (data) setUsers(data as DbUser[])
       }
-    } else {
-      const { data } = await supabase
-        .from('Users')
-        .select('*')
-        .or(`user_handle.ilike.%${q}%,user_name.ilike.%${q}%`)
-        .limit(20)
-      if (data) setUsers(data as DbUser[])
+    } catch (e) {
+      handleError(e, 'search')
     }
     setLoading(false)
   }
@@ -113,7 +123,7 @@ export default function ExploreScreen() {
               {posts.map(item => {
                 const thumb = item.images[0]
                 return (
-                  <Pressable key={item.id} style={styles.gridItem} onPress={() => setCommentPostId(item.id)}>
+                  <Pressable key={item.id} style={styles.gridItem} onPress={() => router.push(`/post/${item.id}`)}>
                     {thumb ? (
                       <Image source={{ uri: thumb }} style={styles.gridImage} />
                     ) : (
@@ -139,11 +149,12 @@ export default function ExploreScreen() {
             <View style={styles.userList}>
               {users.map(u => (
                 <Pressable key={u.id} style={styles.userCard} onPress={() => router.push(`/profile/${u.id}`)}>
-                  <View style={styles.userAvatar}>
-                    <Text style={styles.userAvatarLetter}>
-                      {(u.user_name || u.user_handle || 'U').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  <UserAvatar
+                    avatarUrl={u.avatar_url}
+                    name={u.user_name}
+                    handle={u.user_handle}
+                    size={44}
+                  />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{u.user_name || 'Unnamed'}</Text>
                     <Text style={styles.userHandle}>@{u.user_handle}</Text>
@@ -199,7 +210,7 @@ const styles = StyleSheet.create({
   gridItem: {
     width: '48%', height: 180, backgroundColor: '#ffffff', borderRadius: 8,
     borderWidth: 2.5, borderColor: '#000', overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 3,
+    boxShadow: '3px 3px 0px #000', elevation: 3,
     marginBottom: 4,
   },
   gridImage: { width: '100%', height: '100%' },
@@ -220,13 +231,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: '#ffffff', borderRadius: 8, padding: 14,
     borderWidth: 2, borderColor: '#000',
-    shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 2,
+    boxShadow: '2px 2px 0px #000', elevation: 2,
   },
-  userAvatar: {
-    width: 48, height: 48, borderRadius: 6, backgroundColor: '#ffe600',
-    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#000',
-  },
-  userAvatarLetter: { fontSize: 20, fontWeight: '900', color: '#000' },
+
   userInfo: { flex: 1 },
   userName: { fontSize: 15, fontWeight: '900', color: '#000' },
   userHandle: { fontSize: 12, fontWeight: '700', color: '#6b7280' },
