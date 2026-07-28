@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { parseUrls } from '@/lib/storage'
 import { followUser, getFollowCounts, isFollowing, unfollowUser } from '@/lib/follows'
@@ -8,8 +8,11 @@ import { handleError } from '@/lib/errors'
 import { useAppTheme } from '@/hooks/use-app-theme'
 import BottomNav from '@/components/bottom-nav'
 import FollowListModal from '@/components/follow-list-modal'
+import { ProfileCardSkeleton } from '@/components/skeleton-loader'
 import UserAvatar from '@/components/user-avatar'
 import type { DbPost, DbUser } from '@/lib/database.types'
+
+const USER_PROFILE_IMAGE_WIDTH = Dimensions.get('window').width - 100
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -70,8 +73,15 @@ export default function UserProfileScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.loading} />
+      <View style={[styles.page, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={[styles.backBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
+            <Text style={[styles.backBtnText, { color: colors.text }]}>← BACK</Text>
+          </View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>PROFILE</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <ProfileCardSkeleton />
       </View>
     )
   }
@@ -129,8 +139,9 @@ export default function UserProfileScreen() {
         <Text style={[styles.postsSectionTitle, { color: colors.text }]}>POSTS ({posts.length})</Text>
 
         {posts.length === 0 && (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ fontWeight: '600', color: colors.textSecondary }}>No posts yet</Text>
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginBottom: 12 }}>📝</Text>
+            <Text style={{ fontWeight: '900', fontSize: 16, color: colors.textSecondary }}>No posts yet</Text>
           </View>
         )}
 
@@ -221,7 +232,7 @@ const styles = StyleSheet.create({
     boxShadow: '3px 3px 0px #000', elevation: 3,
   },
   imageRow: { marginBottom: 8, borderRadius: 6, overflow: 'hidden' },
-  postImage: { width: 200, height: 160, borderRadius: 6, marginRight: 6, borderWidth: 2 },
+  postImage: { width: USER_PROFILE_IMAGE_WIDTH, height: 160, borderRadius: 6, marginRight: 6, borderWidth: 2 },
   postDesc: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
   postMeta: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   postMetaText: { fontSize: 12, fontWeight: '800' },

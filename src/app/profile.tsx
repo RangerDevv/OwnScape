@@ -1,16 +1,20 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls } from '@/lib/storage'
 import { getFollowCounts } from '@/lib/follows'
+import { unlinkHashtags } from '@/lib/hashtags'
 import { handleError } from '@/lib/errors'
 import { useAppTheme } from '@/hooks/use-app-theme'
 import BottomNav from '@/components/bottom-nav'
 import FollowListModal from '@/components/follow-list-modal'
+import { ProfileCardSkeleton } from '@/components/skeleton-loader'
 import UserAvatar from '@/components/user-avatar'
 import type { DbPost, DbUser } from '@/lib/database.types'
+
+const PROFILE_IMAGE_WIDTH = Dimensions.get('window').width - 84
 
 export default function ProfileScreen() {
   const router = useRouter()
@@ -76,8 +80,14 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.loading} />
+      <View style={[styles.page, { backgroundColor: colors.background, paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>PROFILE</Text>
+          <View style={[styles.settingsBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
+            <Text style={styles.settingsBtnIcon}>⚙️</Text>
+          </View>
+        </View>
+        <ProfileCardSkeleton />
       </View>
     )
   }
@@ -126,8 +136,10 @@ export default function ProfileScreen() {
         <Text style={[styles.postsSectionTitle, { color: colors.text }]}>MY POSTS ({myPosts.length})</Text>
 
         {myPosts.length === 0 && (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ fontWeight: '600', color: colors.textSecondary }}>No posts yet</Text>
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginBottom: 12 }}>📝</Text>
+            <Text style={{ fontWeight: '900', fontSize: 16, color: colors.textSecondary }}>No posts yet</Text>
+            <Text style={{ marginTop: 4, color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Tap + to create your first post</Text>
           </View>
         )}
 
@@ -154,6 +166,7 @@ export default function ProfileScreen() {
                 await Promise.all([
                   supabase.from('Posts').delete().eq('id', post.id),
                   imgs.length > 0 ? deleteStorageImages(imgs) : Promise.resolve(),
+                  unlinkHashtags(post.id),
                 ])
               }} style={[styles.deletePostBtn, { backgroundColor: colors.destructiveBg, borderColor: colors.destructiveBorder }]}>
                 <Text style={styles.deletePostBtnText}>🗑️</Text>
@@ -233,5 +246,5 @@ const styles = StyleSheet.create({
   deletePostBtn: { marginLeft: 'auto', backgroundColor: '#fee2e2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1.5, borderColor: '#000' },
   deletePostBtnText: { fontSize: 12 },
   profilePostImages: { marginBottom: 8, borderRadius: 6, overflow: 'hidden' },
-  profilePostImage: { width: 200, height: 160, borderRadius: 6, marginRight: 6, borderWidth: 2 },
+  profilePostImage: { width: PROFILE_IMAGE_WIDTH, height: 160, borderRadius: 6, marginRight: 6, borderWidth: 2 },
 })

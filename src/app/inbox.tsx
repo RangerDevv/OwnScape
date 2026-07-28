@@ -18,6 +18,7 @@ function notificationText(n: NotificationWithActor): string {
     case 'like': return `${name} liked your post`
     case 'comment': return `${name} commented on your post`
     case 'follow': return `${name} followed you`
+    case 'mention': return `${name} mentioned you in a post`
     default: return 'New notification'
   }
 }
@@ -103,12 +104,13 @@ export default function InboxScreen() {
           <ActivityIndicator size="large" color={colors.loading} />
         </View>
       ) : notifications.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No notifications yet</Text>
-          <Text style={{ fontWeight: '600', color: colors.textSecondary, fontSize: 13, marginTop: 4 }}>
-            When someone likes, comments, or follows you, it&apos;ll show up here
-          </Text>
-        </View>
+          <View style={styles.emptyWrap}>
+            <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No notifications yet</Text>
+            <Text style={{ fontWeight: '600', color: colors.textSecondary, fontSize: 13, marginTop: 6, textAlign: 'center' }}>
+              When someone likes, comments, or follows you, it&apos;ll show up here
+            </Text>
+          </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {notifications.map(n => (

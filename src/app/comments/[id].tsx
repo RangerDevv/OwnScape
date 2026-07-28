@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { handleError } from '@/lib/errors'
 import { createNotification } from '@/lib/notifications'
 import { useAppTheme } from '@/hooks/use-app-theme'
+import { CommentSkeleton } from '@/components/skeleton-loader'
 import UserAvatar from '@/components/user-avatar'
 import type { DbComment, DbPost, DbUser } from '@/lib/database.types'
 
@@ -100,14 +101,21 @@ export default function CommentsScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.loading} />
+      <View style={[styles.page, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={[styles.backBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
+            <Text style={[styles.backBtnText, { color: colors.text }]}>← BACK</Text>
+          </View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>COMMENTS</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <CommentSkeleton />
       </View>
     )
   }
 
   return (
-    <View style={[styles.page, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView style={[styles.page, { backgroundColor: colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
           <Text style={[styles.backBtnText, { color: colors.text }]}>← BACK</Text>
@@ -116,7 +124,7 @@ export default function CommentsScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {post && (
           <Pressable style={[styles.postPreview, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push(`/post/${post.id}`)}>
             <Text style={[styles.postHandle, { color: colors.pink }]}>@{post.handle}</Text>
@@ -126,9 +134,10 @@ export default function CommentsScreen() {
         )}
 
         {comments.length === 0 && (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <Text style={{ fontWeight: '900', color: colors.textSecondary }}>No comments yet</Text>
-            <Text style={{ fontWeight: '600', color: colors.textSecondary, fontSize: 13 }}>Be the first to comment</Text>
+          <View style={{ padding: 50, alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginBottom: 12 }}>💬</Text>
+            <Text style={{ fontWeight: '900', fontSize: 16, color: colors.textSecondary }}>No comments yet</Text>
+            <Text style={{ marginTop: 4, color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>Be the first to comment</Text>
           </View>
         )}
 
@@ -159,7 +168,7 @@ export default function CommentsScreen() {
           <Text style={[styles.sendBtnText, { color: colors.text }]}>{submitting ? '...' : '→'}</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -176,7 +185,7 @@ const styles = StyleSheet.create({
   },
   backBtnText: { fontSize: 12, fontWeight: '900' },
   headerTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 1 },
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 16, paddingBottom: 20 },
   postPreview: {
     borderRadius: 8, padding: 14,
     borderWidth: 2, marginBottom: 20,
@@ -196,7 +205,6 @@ const styles = StyleSheet.create({
   commentHandle: { fontSize: 10, fontWeight: '700' },
   commentBody: { fontSize: 14, fontWeight: '500' },
   inputBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     padding: 12, borderTopWidth: 3,
   },

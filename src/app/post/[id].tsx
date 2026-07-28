@@ -1,16 +1,21 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Platform, Pressable,
   RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls, pickImages, uploadImage } from '@/lib/storage'
 import { addLike, getLikedPostIds, removeLike } from '@/lib/likes'
 import { handleError } from '@/lib/errors'
+import { linkHashtags, unlinkHashtags } from '@/lib/hashtags'
+import { processMentions, removeMentions } from '@/lib/mentions'
 import { useAppTheme } from '@/hooks/use-app-theme'
+import { RichText } from '@/components/rich-text'
 import UserAvatar from '@/components/user-avatar'
 import type { DbPost, DbUser } from '@/lib/database.types'
+
+const POST_DETAIL_IMAGE_WIDTH = Dimensions.get('window').width - 38
 
 type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle' | 'avatar_url'> | null }
 
@@ -137,6 +142,10 @@ export default function PostDetailScreen() {
       if (error) {
         handleError(error, 'handleSave')
       } else {
+        await unlinkHashtags(post.id)
+        await removeMentions(post.id)
+        await linkHashtags(post.id, editDesc.trim())
+        if (currentUserId) await processMentions(editDesc.trim(), currentUserId, post.id)
         setPost(prev => prev ? {
           ...prev,
           description: editDesc.trim(),
@@ -162,6 +171,8 @@ export default function PostDetailScreen() {
           await Promise.all([
             supabase.from('Posts').delete().eq('id', post.id),
             images.length > 0 ? deleteStorageImages(images) : Promise.resolve(),
+            unlinkHashtags(post.id),
+            removeMentions(post.id),
           ])
           router.back()
         },
@@ -278,7 +289,14 @@ export default function PostDetailScreen() {
             multiline
           />
         ) : (
-          <Text style={[styles.description, { color: colors.text }]}>{post.description}</Text>
+          <RichText
+            text={post.description}
+            style={[styles.description, { color: colors.text }]}
+            hashtagStyle={{ color: colors.pink }}
+            mentionStyle={{ color: colors.pink }}
+            onHashtagPress={(tag) => router.push(`/explore?tag=${encodeURIComponent(tag.slice(1))}`)}
+            onMentionPress={(handle) => router.push(`/explore?q=${encodeURIComponent(handle.slice(1))}&mode=users`)}
+          />
         )}
 
         <View style={styles.statsRow}>
@@ -375,7 +393,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   imageWrap: { position: 'relative' },
-  postImage: { width: 320, height: 360 },
+  postImage: { width: POST_DETAIL_IMAGE_WIDTH, height: 360 },
   removeImgBtn: {
     position: 'absolute', top: 8, right: 8,
     width: 28, height: 28, borderRadius: 14,

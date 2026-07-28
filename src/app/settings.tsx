@@ -7,7 +7,8 @@ import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '@/lib/supabase'
 import { handleError } from '@/lib/errors'
 import { uploadAvatar } from '@/lib/storage'
-import { useAppTheme, type ThemePreference } from '@/hooks/use-app-theme'
+import { useAppTheme, PRESET_PALETTES, type CustomPalette, type ThemePreference } from '@/hooks/use-app-theme'
+import ColorPicker from '@/components/color-picker'
 import UserAvatar from '@/components/user-avatar'
 import type { DbUser } from '@/lib/database.types'
 
@@ -38,7 +39,7 @@ function AnimatedSection({ children, delay }: { children: React.ReactNode; delay
 export default function SettingsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { colors, isDark, themePreference, setThemePreference } = useAppTheme()
+  const { colors, isDark, themePreference, customPalette, setThemePreference, setCustomPalette } = useAppTheme()
 
   const [profile, setProfile] = useState<DbUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -48,6 +49,15 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [palettePrimary, setPalettePrimary] = useState(customPalette?.primary || '#ffe600')
+  const [paletteSecondary, setPaletteSecondary] = useState(customPalette?.secondary || '#ff70a6')
+
+  useEffect(() => {
+    if (customPalette) {
+      setPalettePrimary(customPalette.primary)
+      setPaletteSecondary(customPalette.secondary)
+    }
+  }, [customPalette])
 
   const themeAnimProgress = useSharedValue(0)
   const prevIsDark = useRef(isDark)
@@ -293,7 +303,7 @@ export default function SettingsScreen() {
               previewAnimStyle,
             ]}>
               <View style={styles.previewRow}>
-                <View style={[styles.previewAvatar, { borderColor: previewColors.border }]}>
+                <View style={[styles.previewAvatar, { backgroundColor: colors.yellow, borderColor: previewColors.border }]}>
                   <Text style={styles.previewAvatarText}>{(profile?.user_name || 'U').charAt(0).toUpperCase()}</Text>
                 </View>
                 <View style={styles.previewInfo}>
@@ -314,8 +324,75 @@ export default function SettingsScreen() {
           </View>
         </AnimatedSection>
 
-        {/* ── ACCOUNT SECTION ── */}
+        {/* ── PALETTE SECTION ── */}
         <AnimatedSection delay={250}>
+          <Text style={[styles.sectionLabel, { color: colors.text }]}>🎨 CUSTOM PALETTE</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ColorPicker
+              label="PRIMARY ACCENT"
+              value={palettePrimary}
+              options={PRESET_PALETTES.map(p => p.primary)}
+              onChange={(c) => {
+                setPalettePrimary(c)
+                setCustomPalette({ primary: c, secondary: paletteSecondary })
+              }}
+            />
+            <ColorPicker
+              label="SECONDARY ACCENT"
+              value={paletteSecondary}
+              options={PRESET_PALETTES.map(p => p.secondary)}
+              onChange={(c) => {
+                setPaletteSecondary(c)
+                setCustomPalette({ primary: palettePrimary, secondary: c })
+              }}
+            />
+
+            <View style={styles.presetRow}>
+              {PRESET_PALETTES.map((p) => {
+                const isActive =
+                  p.primary.toUpperCase() === palettePrimary.toUpperCase() &&
+                  p.secondary.toUpperCase() === paletteSecondary.toUpperCase()
+                return (
+                  <Pressable
+                    key={p.name}
+                    style={[
+                      styles.presetChip,
+                      {
+                        borderColor: isActive ? colors.text : colors.border,
+                        backgroundColor: colors.grayLight,
+                      },
+                    ]}
+                    onPress={() => {
+                      setPalettePrimary(p.primary)
+                      setPaletteSecondary(p.secondary)
+                      setCustomPalette({ primary: p.primary, secondary: p.secondary })
+                    }}
+                  >
+                    <View style={styles.presetColors}>
+                      <View style={[styles.presetDot, { backgroundColor: p.primary }]} />
+                      <View style={[styles.presetDot, { backgroundColor: p.secondary }]} />
+                    </View>
+                    <Text style={[styles.presetName, { color: colors.text }]}>{p.name}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+
+            <Pressable
+              style={[styles.resetPaletteBtn, { borderColor: colors.border, backgroundColor: colors.grayLight }]}
+              onPress={async () => {
+                setPalettePrimary('#ffe600')
+                setPaletteSecondary('#ff70a6')
+                await setCustomPalette(null)
+              }}
+            >
+              <Text style={[styles.resetPaletteBtnText, { color: colors.text }]}>↺ RESET TO DEFAULTS</Text>
+            </Pressable>
+          </View>
+        </AnimatedSection>
+
+        {/* ── ACCOUNT SECTION ── */}
+        <AnimatedSection delay={350}>
           <Text style={[styles.sectionLabel, { color: colors.text }]}>🔒 ACCOUNT</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable
@@ -409,6 +486,25 @@ const styles = StyleSheet.create({
   },
   previewStar: { fontSize: 12 },
   previewLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
+
+  // Palette
+  presetRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    width: '100%', marginBottom: 16,
+  },
+  presetChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 6, paddingHorizontal: 10,
+    borderRadius: 8, borderWidth: 2,
+  },
+  presetColors: { flexDirection: 'row', gap: 3 },
+  presetDot: { width: 14, height: 14, borderRadius: 4 },
+  presetName: { fontSize: 11, fontWeight: '800' },
+  resetPaletteBtn: {
+    width: '100%', borderWidth: 2,
+    borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+  },
+  resetPaletteBtnText: { fontSize: 12, fontWeight: '900' },
 
   // Account
   signOutBtn: {

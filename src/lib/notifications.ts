@@ -5,7 +5,7 @@ import type { DbNotification } from './database.types'
 export async function createNotification(params: {
   recipientId: string
   actorId: string
-  type: 'like' | 'comment' | 'follow'
+  type: 'like' | 'comment' | 'follow' | 'mention'
   postId?: number | null
 }): Promise<void> {
   try {

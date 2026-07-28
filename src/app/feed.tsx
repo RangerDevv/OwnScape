@@ -1,18 +1,25 @@
 import { useFocusEffect, useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, Animated, Dimensions, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { deleteStorageImages, parseUrls } from '@/lib/storage'
 import { addLike, getLikedPostIds, removeLike } from '@/lib/likes'
 import { getUnreadCount, subscribeToNotifications } from '@/lib/notifications'
+import { unlinkHashtags } from '@/lib/hashtags'
+import { removeMentions } from '@/lib/mentions'
 import { handleError } from '@/lib/errors'
 import { useAppTheme } from '@/hooks/use-app-theme'
 import BottomNav from '@/components/bottom-nav'
 import CommentsModal from '@/components/comments-modal'
+import { RichText } from '@/components/rich-text'
 import UserAvatar from '@/components/user-avatar'
+import { PostCardSkeleton } from '@/components/skeleton-loader'
 import type { DbPost, DbUser } from '@/lib/database.types'
 
 type PostWithAuthor = DbPost & { author: Pick<DbUser, 'user_name' | 'user_handle' | 'avatar_url'> | null }
+
+const SCREEN_WIDTH = Dimensions.get('window').width
+const FEED_IMAGE_WIDTH = SCREEN_WIDTH - 70
 
 let readSubId = 0
 
@@ -193,6 +200,8 @@ export default function FeedScreen() {
       await Promise.all([
         supabase.from('Posts').delete().eq('id', post.id),
         images.length > 0 ? deleteStorageImages(images) : Promise.resolve(),
+        unlinkHashtags(post.id),
+        removeMentions(post.id),
       ])
     } catch (e) {
       handleError(e, 'handleDeletePost')
@@ -212,8 +221,24 @@ export default function FeedScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.loading} />
+      <View style={[styles.page, { backgroundColor: colors.background }]}>
+        <View style={[styles.topHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoDot} />
+            <Text style={[styles.logoText, { color: colors.text }]}>OWNSCAPE</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={[styles.createBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
+              <Text style={[styles.createBtnText, { color: colors.text }]}>🔔</Text>
+            </View>
+            <View style={[styles.createBtn, { backgroundColor: colors.grayLight, borderColor: colors.border }]}>
+              <Text style={[styles.createBtnText, { color: colors.text }]}>+ POST</Text>
+            </View>
+          </View>
+        </View>
+        <PostCardSkeleton />
+        <PostCardSkeleton />
+        <PostCardSkeleton />
       </View>
     )
   }
@@ -241,9 +266,10 @@ export default function FeedScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
       >
         {posts.length === 0 && (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <Text style={{ fontWeight: '900', fontSize: 16, color: colors.text }}>No posts yet</Text>
-            <Text style={{ marginTop: 4, color: colors.textSecondary, fontWeight: '600' }}>Be the first to share something!</Text>
+          <View style={{ padding: 60, alignItems: 'center' }}>
+            <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
+            <Text style={{ fontWeight: '900', fontSize: 18, color: colors.text }}>No posts yet</Text>
+            <Text style={{ marginTop: 6, color: colors.textSecondary, fontWeight: '600', fontSize: 14, textAlign: 'center' }}>Be the first to share something with the community!</Text>
           </View>
         )}
 
@@ -277,7 +303,16 @@ export default function FeedScreen() {
                   </ScrollView>
                 ) : null
               })()}
-              {!!post.description && <Text style={[styles.postCaption, { color: colors.text }]}>{post.description}</Text>}
+              {!!post.description && (
+                <RichText
+                  text={post.description}
+                  style={[styles.postCaption, { color: colors.text }]}
+                  hashtagStyle={{ color: colors.pink }}
+                  mentionStyle={{ color: colors.pink }}
+                  onHashtagPress={(tag) => router.push(`/explore?tag=${encodeURIComponent(tag.slice(1))}`)}
+                  onMentionPress={(handle) => router.push(`/explore?q=${encodeURIComponent(handle.slice(1))}&mode=users`)}
+                />
+              )}
             </Pressable>
 
             <View style={[styles.actionFooter, { backgroundColor: colors.pink, borderColor: colors.border }]}>
@@ -364,7 +399,7 @@ const styles = StyleSheet.create({
     marginBottom: 12, borderWidth: 3,
     overflow: 'hidden',
   },
-  postImage: { width: 320, height: '100%', marginRight: 4 },
+  postImage: { width: FEED_IMAGE_WIDTH, height: '100%', marginRight: 4 },
   postCaption: { fontSize: 14, fontWeight: '500', lineHeight: 22, marginBottom: 16 },
   actionFooter: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

@@ -2,12 +2,15 @@ import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { handleError } from '@/lib/errors'
 import { createNotification } from '@/lib/notifications'
+import { processMentions } from '@/lib/mentions'
 import { useAppTheme } from '@/hooks/use-app-theme'
+import { RichText } from '@/components/rich-text'
+import { MentionInput } from '@/components/mention-input'
 import UserAvatar from '@/components/user-avatar'
 import type { DbComment, DbPost, DbUser } from '@/lib/database.types'
 
@@ -81,6 +84,7 @@ export default function CommentsModal({ postId, visible, onClose }: Props) {
           .eq('id', newComment.author_id)
           .single()
         setComments(prev => [...prev, { ...newComment, author: authorData || null }] as CommentWithAuthor[])
+        await processMentions(text.trim(), user.id, postId, newComment.id)
         setText('')
         if (post) {
           await createNotification({
@@ -123,7 +127,7 @@ export default function CommentsModal({ postId, visible, onClose }: Props) {
                 {post && (
                   <Pressable style={[styles.postPreview, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => { onClose(); router.push(`/post/${post.id}`) }}>
                     <Text style={[styles.postHandle, { color: colors.pink }]}>@{post.handle}</Text>
-                    <Text style={[styles.postDesc, { color: colors.text }]}>{post.description}</Text>
+                    <RichText text={post.description} style={[styles.postDesc, { color: colors.text }]} hashtagStyle={{ color: colors.pink }} mentionStyle={{ color: colors.pink }} />
                     <Text style={[styles.postMeta, { color: colors.textSecondary }]}>⭐ {post.like_count} · ✈️ {post.share_count}</Text>
                   </Pressable>
                 )}
@@ -150,14 +154,25 @@ export default function CommentsModal({ postId, visible, onClose }: Props) {
                         <Text style={[styles.commentHandle, { color: colors.textSecondary }]}>@{c.author?.user_handle || 'user'}</Text>
                       </View>
                     </View>
-                    <Text style={[styles.commentBody, { color: colors.text }]}>{c.comment_body}</Text>
+                    <RichText
+                      text={c.comment_body}
+                      style={[styles.commentBody, { color: colors.text }]}
+                      hashtagStyle={{ color: colors.pink }}
+                      mentionStyle={{ color: colors.pink }}
+                      onHashtagPress={(tag) => { onClose(); router.push(`/explore?tag=${encodeURIComponent(tag.slice(1))}`) }}
+                      onMentionPress={(handle) => { onClose(); router.push(`/explore?q=${encodeURIComponent(handle.slice(1))}&mode=users`) }}
+                    />
                   </View>
                 ))}
               </ScrollView>
 
               <View style={[styles.inputBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
-                <TextInput style={[styles.input, { backgroundColor: colors.grayLight, borderColor: colors.border, color: colors.text }]} value={text} onChangeText={setText}
-                  placeholder="Write a comment..." placeholderTextColor={colors.textSecondary} multiline />
+                <MentionInput
+                  style={[styles.input, { backgroundColor: colors.grayLight, borderColor: colors.border, color: colors.text }]}
+                  value={text}
+                  onChangeText={setText}
+                  placeholder="Write a comment..." placeholderTextColor={colors.textSecondary} multiline
+                />
                 <Pressable style={[styles.sendBtn, { backgroundColor: colors.yellow, borderColor: colors.border }]} onPress={handleSubmit} disabled={submitting || !text.trim()}>
                   <Text style={[styles.sendBtnText, { color: colors.text }]}>{submitting ? '...' : '→'}</Text>
                 </Pressable>

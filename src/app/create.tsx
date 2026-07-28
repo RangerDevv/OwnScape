@@ -4,8 +4,11 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { supabase } from '@/lib/supabase'
 import { pickImages, uploadImage } from '@/lib/storage'
 import { handleError } from '@/lib/errors'
+import { linkHashtags } from '@/lib/hashtags'
+import { processMentions } from '@/lib/mentions'
 import { useAppTheme } from '@/hooks/use-app-theme'
 import BottomNav from '@/components/bottom-nav'
+import { MentionInput } from '@/components/mention-input'
 
 export default function CreatePostScreen() {
   const router = useRouter()
@@ -51,16 +54,19 @@ export default function CreatePostScreen() {
         .single()
       const resolvedHandle = profile?.user_handle || user.email?.split('@')[0] || 'user'
 
-      const { error: insertErr } = await supabase.from('Posts').insert({
+      const { error: insertErr, data } = await supabase.from('Posts').insert({
         description: description.trim(),
         storage_key: imageUris.length > 0 ? JSON.stringify(imageUris) : null,
         handle: resolvedHandle,
         author_id: user.id,
         like_count: 0,
         share_count: 0,
-      })
+      }).select('id')
 
       if (insertErr) { setError(insertErr.message); setSubmitting(false); return }
+      const postId = data?.[0]?.id ?? 0
+      await linkHashtags(postId, description.trim())
+      await processMentions(description.trim(), user.id, postId)
       router.replace('/feed')
     } catch (e) {
       setError(handleError(e, 'handleCreate'))
@@ -99,8 +105,12 @@ export default function CreatePostScreen() {
           )}
 
           <Text style={[styles.label, { color: colors.text }]}>CAPTION</Text>
-          <TextInput style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={description} onChangeText={setDescription}
-            placeholder="What's on your mind?" placeholderTextColor={colors.textSecondary} multiline />
+          <MentionInput
+            value={description}
+            onChangeText={setDescription}
+            style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+            placeholder="What's on your mind?" placeholderTextColor={colors.textSecondary} multiline
+          />
 
           {!!error && <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>}
 
