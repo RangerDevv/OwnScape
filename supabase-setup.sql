@@ -13,6 +13,7 @@ alter table if exists "Posts" enable row level security;
 alter table if exists "Comments" enable row level security;
 alter table if exists "Follows" enable row level security;
 alter table if exists "Likes" enable row level security;
+alter table if exists "Notifications" enable row level security;
 
 -- -------------------------------------------------------
 -- 2. Users
@@ -144,7 +145,27 @@ create policy "Users can remove their own likes"
   using (cast(auth.uid() as text) = cast(user_id as text));
 
 -- -------------------------------------------------------
--- 7. Storage bucket policies (for the 'Post' bucket)
+-- 7. Notifications
+-- -------------------------------------------------------
+drop policy if exists "Notifications are viewable by recipient" on "Notifications";
+drop policy if exists "Authenticated users can create notifications" on "Notifications";
+drop policy if exists "Recipients can mark notifications as read" on "Notifications";
+
+create policy "Notifications are viewable by recipient"
+  on "Notifications" for select
+  using (cast(auth.uid() as text) = cast(recipient_id as text));
+
+create policy "Authenticated users can create notifications"
+  on "Notifications" for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Recipients can mark notifications as read"
+  on "Notifications" for update
+  using (cast(auth.uid() as text) = cast(recipient_id as text))
+  with check (cast(auth.uid() as text) = cast(recipient_id as text));
+
+-- -------------------------------------------------------
+-- 8. Storage bucket policies (for the 'Post' bucket)
 -- -------------------------------------------------------
 insert into storage.buckets (id, name, public)
 values ('Post', 'Post', true)
